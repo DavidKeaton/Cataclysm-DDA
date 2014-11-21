@@ -99,7 +99,7 @@ public:
     compsec_trait(std::string trait) : t(trait){}
     compsec_trait(std::stringstream& stream);
     compsec_trait(JsonObject& jo);
-    ~compsec(){}
+    ~compsec_trait(){}
     bool attempt();
     std::string save();
     std::string t;

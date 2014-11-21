@@ -159,6 +159,7 @@ public:
     int shocktonfa_on       (player *, item *, bool, point);
     int mp3                 (player *, item *, bool, point);
     int mp3_on              (player *, item *, bool, point);
+    int computer            (player *, item *, bool, point);
     int portable_game       (player *, item *, bool, point);
     int vibe                (player *, item *, bool, point);
     int vortex              (player *, item *, bool, point);

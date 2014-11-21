@@ -6414,6 +6414,52 @@ int iuse::mp3_on(player *p, item *it, bool t, point)
     return it->type->charges_to_use();
 }
 
+int iuse::computer(player *p, item *it, bool b, point l)
+{
+    if(p->is_underwater()) {
+        p->add_msg_if_player(m_info, _("Booting this up underwater seems like a bad idea..."));
+        return 0;
+    }
+    if(p->get_skill_level("computer") < 1 && it->type->id == "laptop") {
+        p->add_msg_if_player(m_info, 
+                _("The laptop seems to power on, but you see no use for it in a time like this."));
+        return 0;
+    } else if(it->charges < 10) {
+        p->add_msg_if_player(m_info, _("There isn't enough battery left to turn this on."));
+        return 0;
+    } else {
+        if(b) { // booting up
+            uimenu pc_m;
+//            pc_m.entries.push_back(uimenu_entry());
+            if(p->prof->ident() == "hacker" || p->get_skill_level("computer") >= 3) {
+                pc_m.text = _("What havoc would you like to wreak?");
+                pc_m.entries.push_back(uimenu_entry(1, true, '1', _("Boot from HDD")));
+                pc_m.entries.push_back(uimenu_entry(2, true, '2', _("Boot from USB")));
+                pc_m.entries.push_back(uimenu_entry(3, true, '3', _("Boot from NET")));
+                pc_m.entries.push_back(uimenu_entry(9, true, 'q', _("Stow away for another day")));
+            } else {
+                pc_m.text = _("What would you like to do?");
+                pc_m.entries.push_back(uimenu_entry(1, true, '1', _("Turn on")));
+                pc_m.entries.push_back(uimenu_entry(9, true, 'q', _("Put away")));
+            }
+            pc_m.query();
+            switch(pc_m.ret) {
+                case 1:     // turn on/boot from hdd
+                    break;
+                case 2:     // boot from usb
+                    break;
+                case 3:     // boot from network
+                    break;
+                case 9:     // turn off/put away
+                default:    // odd use-case (whoops)
+                    return 0;
+            }
+        } else { // shutting down
+        }
+    }
+    return it->type->charges_to_use();
+}
+
 int iuse::portable_game(player *p, item *it, bool, point)
 {
     if (p->is_underwater()) {

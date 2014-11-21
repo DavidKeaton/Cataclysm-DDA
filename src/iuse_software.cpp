@@ -85,3 +85,9 @@ bool play_videogame(std::string function_name, std::map<std::string, std::string
         return false;
     }
 }
+
+int open_application(std::string app_name)
+{
+    return 0;
+}
+

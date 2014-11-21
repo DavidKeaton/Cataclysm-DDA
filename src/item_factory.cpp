@@ -274,6 +274,7 @@ void Item_factory::init()
     iuse_function_list["SHOCKTONFA_ON"] = &iuse::shocktonfa_on;
     iuse_function_list["MP3"] = &iuse::mp3;
     iuse_function_list["MP3_ON"] = &iuse::mp3_on;
+    iuse_function_list["COMPUTER"] = &iuse::computer;
     iuse_function_list["PORTABLE_GAME"] = &iuse::portable_game;
     iuse_function_list["VIBE"] = &iuse::vibe;
     iuse_function_list["VORTEX"] = &iuse::vortex;
