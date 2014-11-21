@@ -6,6 +6,7 @@
 #include "path_info.h"
 #include "debug.h"
 #include "mapsharing.h"
+#include "gamemode.h"
 
 #include "name.h"
 
@@ -100,6 +101,7 @@ WORLDPTR worldfactory::make_new_world( bool show_prompt )
         const int iOffsetY = (TERMY > FULL_SCREEN_HEIGHT) ? (TERMY - FULL_SCREEN_HEIGHT) / 2 : 0;
         // set up window
         WINDOW *wf_win = newwin(FULL_SCREEN_HEIGHT, FULL_SCREEN_WIDTH, iOffsetY, iOffsetX);
+        WINDOW_PTR wf_winptr( wf_win );
 
         int curtab = 0;
         int lasttab; // give placement memory to menus, sorta.
@@ -131,7 +133,6 @@ WORLDPTR worldfactory::make_new_world( bool show_prompt )
     //debugmsg("worldpath: %s", path.str().c_str());
 
     if (!save_world(retworld)) {
-        popup( _( "Failed to save world!" ) );
         std::string worldname = retworld->world_name;
         std::vector<std::string>::iterator it = std::find(all_worldnames.begin(), all_worldnames.end(),
                                                 worldname);
@@ -261,7 +262,7 @@ bool worldfactory::save_world(WORLDPTR world, bool is_conversion)
     if (!is_conversion) {
         fopen_exclusive(fout, woption.str().c_str());
         if (!fout.is_open()) {
-            fout.close();
+            popup( _( "Could not open the world file %s, check file permissions." ), woption.str().c_str() );
             return false;
         }
         fout << world_options_header() << std::endl;
@@ -273,6 +274,9 @@ bool worldfactory::save_world(WORLDPTR world, bool is_conversion)
             fout << it->first << " " << it->second.getValue() << std::endl << std::endl;
         }
         fclose_exclusive(fout, woption.str().c_str());
+        if( fout.fail() ) {
+            popup( _( "Failed to save the world file to %s." ), woption.str().c_str() );
+        }
     }
     mman->save_mods_list(world);
     return true;
@@ -592,12 +596,15 @@ int worldfactory::show_worldgen_tab_options(WINDOW *win, WORLDPTR world)
 
     WINDOW *w_options = newwin(iContentHeight, FULL_SCREEN_WIDTH - 2, iTooltipHeight + 4 + iOffsetY,
                                1 + iOffsetX);
+    WINDOW_PTR w_optionsptr( w_options );
 
     WINDOW *w_options_tooltip = newwin(iTooltipHeight - 2, FULL_SCREEN_WIDTH - 2, 3 + iOffsetY,
                                        1 + iOffsetX);
+    WINDOW_PTR w_options_tooltipptr( w_options_tooltip );
 
     WINDOW *w_options_header = newwin(1, FULL_SCREEN_WIDTH - 2, iTooltipHeight + 3 + iOffsetY,
                                       1 + iOffsetX);
+    WINDOW_PTR w_options_headerptr( w_options_header );
 
     std::stringstream sTemp;
 
@@ -717,13 +724,9 @@ int worldfactory::show_worldgen_tab_options(WINDOW *win, WORLDPTR world)
             world->world_options[mPageItems[iWorldOptPage][iCurrentLine]].setPrev();
 
         } else if (action == "PREV_TAB") {
-            werase(w_options);
-            delwin(w_options);
             return -1;
 
         } else if (action == "NEXT_TAB") {
-            werase(w_options);
-            delwin(w_options);
             return 1;
 
         } else if (action == "QUIT") {
@@ -1044,6 +1047,7 @@ int worldfactory::show_worldgen_tab_confirm(WINDOW *win, WORLDPTR world)
 
     WINDOW *w_confirmation = newwin(iContentHeight, FULL_SCREEN_WIDTH - 2,
                                     iTooltipHeight + 2 + iOffsetY, 1 + iOffsetX);
+    WINDOW_PTR w_confirmationptr( w_confirmation );
 
     unsigned namebar_y = 1;
     unsigned namebar_x = 3 + utf8_width(_("World Name:"));
@@ -1099,17 +1103,12 @@ to continue, or <color_yellow>%s</color> to go back and review your world."), ct
                 }
             } else if (query_yn(_("Are you SURE you're finished?")) && valid_worldname(worldname)) {
                 world->world_name = worldname;
-                werase(w_confirmation);
-                delwin(w_confirmation);
-
                 return 1;
             } else {
                 continue;
             }
         } else if (action == "PREV_TAB") {
             world->world_name = worldname;
-            werase(w_confirmation);
-            delwin(w_confirmation);
             return -1;
         } else if (action == "PICK_RANDOM_WORLDNAME") {
             mvwprintz(w_confirmation, namebar_y, namebar_x, c_ltgray, "______________________________");

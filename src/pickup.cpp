@@ -96,7 +96,7 @@ int Pickup::interact_with_vehicle( vehicle *veh, int posx, int posy, int veh_roo
             if( tmp_hotplate.is_tool() ) {
                 it_tool *tmptool = dynamic_cast<it_tool *>((&tmp_hotplate)->type);
                 if ( tmp_hotplate.charges >= tmptool->charges_per_use ) {
-                    tmptool->invoke(&g->u, &tmp_hotplate, false);
+                    tmptool->invoke(&g->u, &tmp_hotplate, false, point(posx, posy));
                     tmp_hotplate.charges -= tmptool->charges_per_use;
                     veh->refill( "battery", tmp_hotplate.charges );
                 }
@@ -133,7 +133,7 @@ int Pickup::interact_with_vehicle( vehicle *veh, int posx, int posy, int veh_roo
             if( tmp_welder.is_tool() ) {
                 it_tool *tmptool = dynamic_cast<it_tool *>((&tmp_welder)->type);
                 if ( tmp_welder.charges >= tmptool->charges_per_use ) {
-                    tmptool->invoke( &g->u, &tmp_welder, false );
+                    tmptool->invoke( &g->u, &tmp_welder, false, point(posx, posy)  );
                     tmp_welder.charges -= tmptool->charges_per_use;
                     veh->refill( "battery", tmp_welder.charges );
                 }
@@ -149,7 +149,7 @@ int Pickup::interact_with_vehicle( vehicle *veh, int posx, int posy, int veh_roo
             if( tmp_purifier.is_tool() ) {
                 it_tool *tmptool = dynamic_cast<it_tool *>((&tmp_purifier)->type);
                 if ( tmp_purifier.charges >= tmptool->charges_per_use ) {
-                    tmptool->invoke( &g->u, &tmp_purifier, false );
+                    tmptool->invoke( &g->u, &tmp_purifier, false, point(posx, posy) );
                     tmp_purifier.charges -= tmptool->charges_per_use;
                     veh->refill( "battery", tmp_purifier.charges );
                 }
@@ -391,16 +391,6 @@ void Pickup::do_pickup( point pickup_target, bool from_vehicle,
 // Pick up items at (posx, posy).
 void Pickup::pick_up(int posx, int posy, int min)
 {
-    //min == -1 is Autopickup
-
-    if (g->m.has_flag("SEALED", posx, posy)) {
-        return;
-    }
-
-    if (!g->u.can_pickup(min != -1)) { // no message on autopickup (-1)
-        return;
-    }
-
     int veh_root_part = 0;
     int cargo_part = -1;
 
@@ -411,8 +401,18 @@ void Pickup::pick_up(int posx, int posy, int min)
         cargo_part = interact_with_vehicle( veh, posx, posy, veh_root_part );
         from_vehicle = cargo_part >= 0;
         if( cargo_part == -2 ) {
+            // -2 indicates that we already interacted with the vehicle.
             return;
         }
+    }
+
+    if (g->m.has_flag("SEALED", posx, posy)) {
+        return;
+    }
+
+    //min == -1 is Autopickup
+    if (!g->u.can_pickup(min != -1)) { // no message on autopickup (-1)
+        return;
     }
 
     if( !from_vehicle ) {
@@ -503,26 +503,6 @@ void Pickup::pick_up(int posx, int posy, int min)
     maxitems = (maxitems < minmaxitems ? minmaxitems : (maxitems > maxmaxitems ? maxmaxitems :
                 maxitems ));
 
-    int pickupH = maxitems + pickupBorderRows;
-    int pickupW = getmaxx(g->w_messages);
-    int pickupY = VIEW_OFFSET_Y;
-    int pickupX = getbegx(g->w_messages);
-
-    int itemsW = pickupW;
-    int itemsY = sideStyle ? pickupY + pickupH : TERMY - itemsH;
-    int itemsX = pickupX;
-
-    WINDOW *w_pickup    = newwin(pickupH, pickupW, pickupY, pickupX);
-    WINDOW *w_item_info = newwin(itemsH,  itemsW,  itemsY,  itemsX);
-
-    int ch = ' ';
-    int start = 0, cur_it;
-    int new_weight = g->u.weight_carried(), new_volume = g->u.volume_carried();
-    bool update = true;
-    mvwprintw(w_pickup, 0, 0, _("PICK UP"));
-    int selected = 0;
-    int last_selected = -1;
-
     int itemcount = 0;
     std::map<int, unsigned int> pickup_count; // Count of how many we'll pick up from each stack
 
@@ -532,6 +512,28 @@ void Pickup::pick_up(int posx, int posy, int min)
             return;
         }
     } else {
+        int pickupH = maxitems + pickupBorderRows;
+        int pickupW = getmaxx(g->w_messages);
+        int pickupY = VIEW_OFFSET_Y;
+        int pickupX = getbegx(g->w_messages);
+
+        int itemsW = pickupW;
+        int itemsY = sideStyle ? pickupY + pickupH : TERMY - itemsH;
+        int itemsX = pickupX;
+
+        WINDOW *w_pickup    = newwin(pickupH, pickupW, pickupY, pickupX);
+        WINDOW *w_item_info = newwin(itemsH,  itemsW,  itemsY,  itemsX);
+        WINDOW_PTR w_pickupptr( w_pickup );
+        WINDOW_PTR w_item_infoptr( w_item_info );
+
+        int ch = ' ';
+        int start = 0, cur_it;
+        int new_weight = g->u.weight_carried(), new_volume = g->u.volume_carried();
+        bool update = true;
+        mvwprintw(w_pickup, 0, 0, _("PICK UP"));
+        int selected = 0;
+        int last_selected = -1;
+
         if(g->was_fullscreen) {
             g->draw_ter();
         }
@@ -651,7 +653,8 @@ void Pickup::pick_up(int posx, int posy, int min)
                     draw_item_info(w_item_info, "", vThisItem, vDummy, 0, true, true);
                 }
                 draw_border(w_item_info);
-                mvwprintz(w_item_info, 0, 2, c_white, "< %s >", here[selected].display_name().c_str());
+                const auto name = utf8_wrapper( here[selected].display_name() ).shorten( itemsW - 8 );
+                mvwprintz(w_item_info, 0, 2, c_white, "< %s >", name.c_str());
                 wrefresh(w_item_info);
             }
 
@@ -746,13 +749,16 @@ void Pickup::pick_up(int posx, int posy, int min)
 
         } while (ch != ' ' && ch != '\n' && ch != KEY_ESCAPE);
 
-        if (ch != '\n') {
-            werase(w_pickup);
-            wrefresh(w_pickup);
-            werase(w_item_info);
-            wrefresh(w_item_info);
-            delwin(w_pickup);
-            delwin(w_item_info);
+        bool item_selected = false;
+        // Check if we have selected an item.
+        for( auto selection : getitem ) {
+            if( selection ) {
+                item_selected = true;
+            }
+        }
+        if( ch != '\n' || !item_selected ) {
+            w_pickupptr.reset();
+            w_item_infoptr.reset();
             add_msg(_("Never mind."));
             g->reenter_fullscreen();
             g->refresh_all();
@@ -776,12 +782,6 @@ void Pickup::pick_up(int posx, int posy, int min)
     }
 
     g->reenter_fullscreen();
-    werase(w_pickup);
-    wrefresh(w_pickup);
-    werase(w_item_info);
-    wrefresh(w_item_info);
-    delwin(w_pickup);
-    delwin(w_item_info);
 }
 
 //helper function for Pickup::pick_up

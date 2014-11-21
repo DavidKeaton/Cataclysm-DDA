@@ -24,6 +24,7 @@
 #include "crafting.h"
 #include "get_version.h"
 #include "monstergenerator.h"
+#include "item_factory.h"
 
 #include "savegame.h"
 #include "tile_id_data.h" // for monster::json_save
@@ -344,10 +345,11 @@ void player::serialize(JsonOut &json) const
 
     // crafting etc
     json.member( "activity", activity );
-    json.member( "backlog", activity );
+    json.member( "backlog", backlog );
 
     // mutations; just like traits but can be removed.
     json.member( "mutations", my_mutations );
+    json.member( "mutation_keys", trait_keys );
 
     // "The cold wakes you up."
     json.member( "temp_cur", temp_cur );
@@ -443,6 +445,7 @@ void player::deserialize(JsonIn &jsin)
     data.read( "style_selected", style_selected );
 
     data.read( "mutations", my_mutations );
+    data.read( "mutation_keys", trait_keys );
 
     set_highest_cat_level();
     drench_mut_calc();
@@ -453,7 +456,7 @@ void player::deserialize(JsonIn &jsin)
     } else {
         scenario *generic_scenario = scenario::generic();
         // Only display error message if from a game file after scenarios existed.
-        if (savegame_loading_version > 20) { 
+        if (savegame_loading_version > 20) {
             debugmsg("Tried to use non-existent scenario '%s'. Setting to generic '%s'.",
                         scen_ident.c_str(), generic_scenario->ident().c_str());
         }
@@ -468,7 +471,7 @@ void player::deserialize(JsonIn &jsin)
 
     frostbite_timer.fill( 0 );
     data.read( "frostbite_timer", frostbite_timer );
-    
+
     body_wetness.fill( 0 );
     data.read( "body_wetness", body_wetness );
 
@@ -478,7 +481,7 @@ void player::deserialize(JsonIn &jsin)
         learned_recipes.clear();
         while ( parray.has_more() ) {
             if ( parray.read_next(pstr) ) {
-                learned_recipes[ pstr ] = recipe_by_name( pstr );
+                learned_recipes[ pstr ] = (recipe *)recipe_by_name( pstr );
             }
         }
     }
@@ -865,7 +868,7 @@ void monster::load(JsonObject &data)
     data.read("wandy", wandy);
     data.read("wandf", wandf);
     data.read("hp", hp);
-    
+
     if (data.has_array("sp_timeout")) {
         JsonArray parray = data.get_array("sp_timeout");
         if ( !parray.empty() ) {
@@ -880,7 +883,7 @@ void monster::load(JsonObject &data)
     for (size_t i = sp_timeout.size(); i < type->sp_freq.size(); ++i) {
         sp_timeout.push_back(rng(0, type->sp_freq[i]));
     }
-    
+
     data.read("friendly", friendly);
     data.read("faction_id", faction_id);
     data.read("mission_id", mission_id);
@@ -894,8 +897,11 @@ void monster::load(JsonObject &data)
     data.read("plans", plans);
 
     data.read("inv", inv);
-    if (!data.read("ammo", ammo)) {
-        ammo = 100;
+    if( data.has_int("ammo") && !type->starting_ammo.empty() ) {
+        // Legacy loading for ammo.
+        normalize_ammo( data.get_int("ammo") );
+    } else {
+        data.read("ammo", ammo);
     }
 }
 
@@ -993,10 +999,21 @@ void item::deserialize(JsonObject &data)
         }
     }
 
+    if( idtmp == "UPS_on" ) {
+        idtmp = "UPS_off";
+    } else if( idtmp == "adv_UPS_on" ) {
+        idtmp = "adv_UPS_off" ;
+    }
     make(idtmp);
 
     if ( ! data.read( "name", name ) ) {
         name = type->nname(1);
+    }
+    // Compatiblity for item type changes: for example soap changed from being a generic item
+    // (item::charges == -1) to comestible (and thereby counted by charges), old saves still have
+    // charges == -1, this fixes the charges value to the default charges.
+    if( count_by_charges() && charges < 0 ) {
+        charges = item( type->id, 0 ).charges;
     }
 
     data.read( "invlet", lettmp );
@@ -1017,14 +1034,14 @@ void item::deserialize(JsonObject &data)
 
     data.read( "curammo", ammotmp );
     if ( ammotmp != "null" ) {
-        curammo = dynamic_cast<it_ammo *>(itypes[ammotmp]);
+        curammo = dynamic_cast<it_ammo *>( item( ammotmp, 0 ).type );
     } else {
         curammo = NULL;
     }
 
     data.read( "covers", tmp_covers );
     if (is_armor() && tmp_covers.none()) {
-        it_armor *armor = dynamic_cast<it_armor *>(itypes[idtmp]);
+        it_armor *armor = dynamic_cast<it_armor *>( item( idtmp, 0 ).type );
         covers = armor->covers;
         if (armor->sided.any()) {
             bool left = one_in(2);
@@ -1226,6 +1243,7 @@ void vehicle_part::deserialize(JsonIn &jsin)
     data.read("amount", amount );
     data.read("blood", blood );
     data.read("bigness", bigness );
+    data.read("enabled", enabled );
     data.read("flags", flags );
     data.read("passenger_id", passenger_id );
     data.read("items", items);
@@ -1245,6 +1263,7 @@ void vehicle_part::serialize(JsonOut &json) const
     json.member("amount", amount);
     json.member("blood", blood);
     json.member("bigness", bigness);
+    json.member("enabled", enabled);
     json.member("flags", flags);
     json.member("passenger_id", passenger_id);
     json.member("items", items);
@@ -1444,7 +1463,7 @@ void faction::deserialize(JsonIn &jsin)
 
     jo.read("id", id);
     jo.read("name", name);
-    if ( !jo.read( "description", desc )) {
+    if ( !jo.read( "desc", desc )) {
         desc = "";
     }
     goal = faction_goal(jo.get_int("goal", goal));
@@ -1620,4 +1639,32 @@ void Creature::load( JsonObject &jsin )
     jsin.read( "throw_resist", throw_resist );
 
     fake = false; // see Creature::load
+}
+
+void morale_point::deserialize( JsonIn &jsin )
+{
+    JsonObject jo = jsin.get_object();
+    type = static_cast<morale_type>( jo.get_int( "type_enum" ) );
+    std::string tmpitype;
+    if( jo.read( "item_type", tmpitype ) && item_controller->has_template( tmpitype ) ) {
+        item_type = item_controller->find_template( tmpitype );
+    }
+    jo.read( "bonus", bonus );
+    jo.read( "duration", duration );
+    jo.read( "decay_start", decay_start );
+    jo.read( "age", age );
+}
+
+void morale_point::serialize( JsonOut &json ) const
+{
+    json.start_object();
+    json.member( "type_enum", static_cast<int>( type ) );
+    if( item_type != NULL ) {
+        json.member( "item_type", item_type->id );
+    }
+    json.member( "bonus", bonus );
+    json.member( "duration", duration );
+    json.member( "decay_start", decay_start );
+    json.member( "age", age );
+    json.end_object();
 }

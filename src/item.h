@@ -6,6 +6,9 @@
 #include <vector>
 #include <list>
 #include <bitset>
+#include <unordered_set>
+#include <set>
+#include "artifact.h"
 #include "itype.h"
 #include "mtype.h"
 
@@ -18,38 +21,40 @@ class material_type;
 // Thresholds for radiation dosage for the radiation film badge.
 const int rad_dosage_thresholds[] = { 0, 30, 60, 120, 240, 500};
 const std::string rad_threshold_colors[] = { _("green"), _("blue"), _("yellow"),
-                                             _("orange"), _("red"), _("black")};
+                                             _("orange"), _("red"), _("black")
+                                           };
 
 struct light_emission {
-  unsigned short luminance;
-  short width;
-  short direction;
+    unsigned short luminance;
+    short width;
+    short direction;
 };
 extern light_emission nolight;
 
-struct iteminfo{
-public:
-    std::string sType; //Itemtype
-    std::string sName; //Main item text
-    std::string sFmt; //Text between main item and value
-    std::string sValue; //Set to "-999" if no compare value is present
-    double dValue; //Stores double value of sValue for value comparisons
-    bool is_int; //Sets if sValue should be treated as int or single decimal double
-    std::string sPlus; //number +
-    bool bNewLine; //New line at the end
-    bool bLowerIsBetter; //Lower values are better (red <-> green)
-    bool bDrawName; //If false then compares sName, but don't print sName.
+struct iteminfo {
+    public:
+        std::string sType; //Itemtype
+        std::string sName; //Main item text
+        std::string sFmt; //Text between main item and value
+        std::string sValue; //Set to "-999" if no compare value is present
+        double dValue; //Stores double value of sValue for value comparisons
+        bool is_int; //Sets if sValue should be treated as int or single decimal double
+        std::string sPlus; //number +
+        bool bNewLine; //New line at the end
+        bool bLowerIsBetter; //Lower values are better (red <-> green)
+        bool bDrawName; //If false then compares sName, but don't print sName.
 
-    // Inputs are: ItemType, main text, text between main text and value, value,
-    // if the value should be an int instead of a double, text after number,
-    // if there should be a newline after this item, if lower values are better
-    iteminfo(std::string Type, std::string Name, std::string Fmt = "", double Value = -999,
-             bool _is_int = true, std::string Plus = "", bool NewLine = true,
-             bool LowerIsBetter = false, bool DrawName = true);
+        // Inputs are: ItemType, main text, text between main text and value, value,
+        // if the value should be an int instead of a double, text after number,
+        // if there should be a newline after this item, if lower values are better
+        iteminfo(std::string Type, std::string Name, std::string Fmt = "", double Value = -999,
+                 bool _is_int = true, std::string Plus = "", bool NewLine = true,
+                 bool LowerIsBetter = false, bool DrawName = true);
 };
 
 enum LIQUID_FILL_ERROR {L_ERR_NONE, L_ERR_NO_MIX, L_ERR_NOT_CONTAINER, L_ERR_NOT_WATERTIGHT,
-    L_ERR_NOT_SEALED, L_ERR_FULL};
+                        L_ERR_NOT_SEALED, L_ERR_FULL
+                       };
 
 enum layer_level {
     UNDERWEAR = 0,
@@ -93,7 +98,10 @@ public:
  // Firearm specifics
  int reload_time(player &u);
  int clip_size();
- int dispersion();
+ int dispersion() const;
+ // We use the current aim level to decide which sight to use.
+ int sight_dispersion( int aim_threshold ) const;
+ int aim_speed( int aim_threshold ) const;
  int gun_damage(bool with_ammo = true);
  int gun_pierce(bool with_ammo = true);
  int noise() const;
@@ -104,6 +112,7 @@ public:
  int pick_reload_ammo(player &u, bool interactive);
  bool reload(player &u, int pos);
  void next_mode();
+ std::string skill() const;
 
     using JsonSerializer::serialize;
     // give the option not to save recursively, but recurse by default
@@ -145,7 +154,14 @@ public:
     bool is_of_ammo_type_or_contains_it(const ammotype &ammo_type_id) const;
 
  bool invlet_is_okay();
- bool stacks_with(item rhs);
+        bool stacks_with( const item &rhs ) const;
+        /**
+         * Merge charges of the other item into this item.
+         * @return true if the items have been merged, otherwise false.
+         * Merging is only done for items counted by charges (@ref count_by_charges) and
+         * items that stack together (@ref stacks_with).
+         */
+        bool merge_charges( const item &rhs );
  void put_in(item payload);
  void add_rain_to_container(bool acid, int charges = 1);
 
@@ -204,7 +220,13 @@ public:
   * @param On success all consumed items will be stored here.
   */
  bool use_amount(const itype_id &it, int &quantity, bool use_container, std::list<item> &used);
-
+/**
+ * Fill container with liquid up to its capacity.
+ * @param liquid Liquid to fill the container with.
+ * @param err Contains error message if function returns false.
+ * @return Returns false in case of error
+ */
+ bool fill_with( item &liquid, std::string &err );
  bool has_flag(const std::string &f) const;
  bool contains_with_flag (std::string f) const;
  bool has_quality(std::string quality_id) const;
@@ -277,7 +299,7 @@ public:
     int fridge;
 
  int brewing_time();
- bool ready_to_revive(); // used for corpses
+ bool ready_to_revive( point pos ); // used for corpses
  void detonate(point p) const;
  bool can_revive();      // test if item is a corpse and can be revived
 // light emission, determined by type->light_emission (LIGHT_???) tag (circular),
@@ -295,9 +317,37 @@ public:
  // elemental resistances
  int acid_resist() const;
  bool is_two_handed(player *u);
+ /**
+  * Material ids we are made of, whether or not we're a corpse.
+  */
+ std::vector<std::string> made_of() const;
+ /**
+  * Material types we are made of, whether or not we're a corpse.
+  * Returns base types.
+  */
+ std::vector<material_type*> made_of_types() const;
+ /**
+  * Check we are made of at least one of a set (e.g. true if even
+  * one item of the passed in set matches any material).
+  * @param mat_idents Set of material ids.
+  */
+ bool made_of_any(std::vector<std::string> &mat_idents) const;
+ /**
+  * Check we are made of only the materials (e.g. false if we have
+  * one material not in the set).
+  * @param mat_idents Set of material ids.
+  */
+ bool only_made_of(std::vector<std::string> &mat_idents) const;
+ /**
+  * Check we are made of this material (e.g. matches at least one
+  * in our set.)
+  * @param mat_idents Set of material ids.
+  */
  bool made_of(std::string mat_ident) const;
- // Never returns NULL
- const material_type *get_material(int m) const;
+ /**
+  * Are we solid, liquid, gas, plasma?
+  * @param phase
+  */
  bool made_of(phase_id phase) const;
  bool conductive() const; // Electricity
  bool flammable() const;
@@ -321,11 +371,13 @@ public:
      * @param pos The location of the item on the map, same system as
      * @ref player::pos used. If the item is carried, it should be the
      * location of the carrier.
+     * @param passive Whether the item should be activated (true), or
+     * processed as an active item.
      * @return true if the item has been destroyed by the processing. The caller
      * should than delete the item wherever it was stored.
      * Returns false if the item is not destroyed.
      */
-    bool process(player *carrier, point pos);
+    bool process(player *carrier, point pos, bool activate);
 protected:
     // Sub-functions of @ref process, they handle the processing for different
     // processing types, just to make the process function cleaner.
@@ -377,6 +429,8 @@ public:
  bool is_book() const;
  bool is_container() const;
  bool is_watertight_container() const;
+ bool is_salvageable() const;
+ bool is_disassemblable() const;
  bool is_container_empty() const;
  bool is_container_full() const;
  bool is_funnel_container(int &bigger_than) const;
@@ -387,6 +441,19 @@ public:
  bool is_other() const; // Doesn't belong in other categories
  bool is_var_veh_part() const;
  bool is_artifact() const;
+
+        /**
+         * Does the item provide the artifact effect when it is wielded?
+         */
+        bool has_effect_when_wielded( art_effect_passive effect ) const;
+        /**
+         * Does the item provide the artifact effect when it is worn?
+         */
+        bool has_effect_when_worn( art_effect_passive effect ) const;
+        /**
+         * Does the item provide the artifact effect when it is carried?
+         */
+        bool has_effect_when_carried( art_effect_passive effect ) const;
 
     /**
      * Set the snippet text (description) of this specific item, using the snippet library.
@@ -468,8 +535,8 @@ private:
  static itype * nullitem_m;
 };
 
-std::ostream & operator<<(std::ostream &, const item &);
-std::ostream & operator<<(std::ostream &, const item *);
+std::ostream &operator<<(std::ostream &, const item &);
+std::ostream &operator<<(std::ostream &, const item *);
 
 class map_item_stack
 {
@@ -482,13 +549,15 @@ class map_item_stack
                 int count;
 
                 //only expected to be used for things like lists and vectors
-                item_group() {
+                item_group()
+                {
                     x = 0;
                     y = 0;
                     count = 0;
                 }
 
-                item_group(const int arg_x, const int arg_y, const int arg_count) {
+                item_group(const int arg_x, const int arg_y, const int arg_count)
+                {
                     x = arg_x;
                     y = arg_y;
                     count = arg_count;
@@ -502,13 +571,15 @@ class map_item_stack
         int totalcount;
 
         //only expected to be used for things like lists and vectors
-        map_item_stack() {
+        map_item_stack()
+        {
             example = item();
             vIG.push_back(item_group());
             totalcount = 0;
         }
 
-        map_item_stack(const item it, const int arg_x, const int arg_y) {
+        map_item_stack(const item it, const int arg_x, const int arg_y)
+        {
             example = it;
             vIG.push_back(item_group(arg_x, arg_y, 1));
             totalcount = 1;
@@ -516,15 +587,17 @@ class map_item_stack
 
         ~map_item_stack() {};
 
-        void addNewPos(const int arg_x, const int arg_y) {
+        void addNewPos(const int arg_x, const int arg_y)
+        {
             vIG.push_back(item_group(arg_x, arg_y, 1));
             totalcount++;
         }
 
-        void incCount() {
+        void incCount()
+        {
             const int iVGsize = vIG.size();
             if (iVGsize > 0) {
-                vIG[iVGsize-1].count++;
+                vIG[iVGsize - 1].count++;
             }
             totalcount++;
         }
@@ -538,14 +611,15 @@ bool item_matches_locator(const item &it, int locator_pos, int item_pos = INT_MI
 bool item_matches_locator(const item &it, const item *other, int);
 
 //this is an attempt for functional programming
-bool is_edible(item i, player const*u);
+bool is_edible(item i, player const *u);
 
 //the assigned numbers are a result of legacy stuff in draw_item_info(),
 //it would be better long-term to rewrite stuff so that we don't need that hack
 enum hint_rating {
- HINT_CANT = 0, //meant to display as gray
- HINT_IFFY = 1, //meant to display as red
- HINT_GOOD = -999 // meant to display as green
+    HINT_CANT = 0, //meant to display as gray
+    HINT_IFFY = 1, //meant to display as red
+    HINT_GOOD = -999 // meant to display as green
 };
 
 #endif
+

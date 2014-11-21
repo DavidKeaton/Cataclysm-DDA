@@ -41,7 +41,6 @@ monster::monster()
  unique_name = "";
  hallucination = false;
  ignoring = 0;
- ammo = 100;
 }
 
 monster::monster(mtype *t)
@@ -70,7 +69,7 @@ monster::monster(mtype *t)
  unique_name = "";
  hallucination = false;
  ignoring = 0;
- ammo = 100;
+ ammo = t->starting_ammo;
 }
 
 monster::monster(mtype *t, int x, int y)
@@ -99,7 +98,7 @@ monster::monster(mtype *t, int x, int y)
  unique_name = "";
  hallucination = false;
  ignoring = 0;
- ammo = 100;
+ ammo = t->starting_ammo;
 }
 
 monster::~monster()
@@ -455,6 +454,40 @@ bool monster::is_fleeing(player &u) const
  monster_attitude att = attitude(&u);
  return (att == MATT_FLEE ||
          (att == MATT_FOLLOW && rl_dist(_posx, _posy, u.posx, u.posy) <= 4));
+}
+
+Creature::Attitude monster::attitude_to( const Creature &other ) const
+{
+    const auto m = dynamic_cast<const monster *>( &other );
+    const auto p = dynamic_cast<const player *>( &other );
+    if( m != nullptr ) {
+        if( friendly != 0 && friendly != 0 ) {
+            // Currently friendly means "friendly to the player" (on same side as player),
+            // so if both monsters are friendly (towards the player), they are friendly towards
+            // each other.
+            return A_FRIENDLY;
+        }
+        // For now monsters are neutral (not hostile!) to all other monsters.
+        return A_NEUTRAL;
+    } else if( p != nullptr ) {
+        switch( attitude( const_cast<player *>( p ) ) ) {
+            case MATT_FRIEND:
+                return A_FRIENDLY;
+            case MATT_FPASSIVE:
+            case MATT_FLEE:
+            case MATT_IGNORE:
+            case MATT_FOLLOW:
+            case MATT_ZLAVE:
+                return A_NEUTRAL;
+            case MATT_ATTACK:
+                return A_HOSTILE;
+            case MATT_NULL:
+            case NUM_MONSTER_ATTITUDES:
+                break;
+        }
+    }
+    // Should not happen!, creature should be either player or monster
+    return A_NEUTRAL;
 }
 
 monster_attitude monster::attitude(player *u) const
@@ -928,7 +961,7 @@ int monster::hit_roll() const {
             return 0;
         }
     }
-    
+
     return dice(type->melee_skill, 10);
 }
 
@@ -1003,7 +1036,7 @@ void monster::reset_special(int index)
     if (index < 0) {
         return;
     }
-    
+
     sp_timeout[index] = type->sp_freq[index];
 }
 
@@ -1012,7 +1045,7 @@ void monster::reset_special_rng(int index)
     if (index < 0) {
         return;
     }
-    
+
     sp_timeout[index] = rng(0, type->sp_freq[index]);
 }
 
@@ -1021,17 +1054,38 @@ void monster::set_special(int index, int time)
     if (index < 0) {
         return;
     }
-    
+
     if (time < 0) {
         time = 0;
     }
     sp_timeout[index] = time;
 }
 
+void monster::normalize_ammo( const int old_ammo )
+{
+    int total_ammo = 0;
+    // Sum up the ammo entries to get a ratio.
+    for( const auto &ammo_entry : type->starting_ammo ) {
+        total_ammo += ammo_entry.second;
+    }
+    if( total_ammo == 0 ) {
+        // Should never happen, but protect us from a div/0 if it does.
+        return;
+    }
+    // Previous code gave robots 100 rounds of ammo.
+    // This reassigns whatever is left from that in the appropriate proportions.
+    for( const auto &ammo_entry : type->starting_ammo ) {
+        ammo[ammo_entry.first] = (old_ammo * ammo_entry.second) / (100 * total_ammo);
+    }
+}
+
 void monster::explode()
 {
     if( is_hallucination() ) {
         //Can't gib hallucinations
+        return;
+    }
+    if( type->has_flag( MF_NOGIB ) || type->has_flag( MF_VERMIN ) ) {
         return;
     }
     // Send body parts and blood all over!
@@ -1319,7 +1373,7 @@ bool monster::make_fungus()
       tid == "mon_zombie_brute_shocker") {
         polypick = 2; // Necro and Master have enough Goo to resist conversion.
         // Firefighter, hazmat, and scarred/beekeeper have the PPG on.
-    } else if (tid == "mon_zombie_necro" || tid == "mon_zombie_master" || tid == "mon_zombie_firefighter" ||
+    } else if (tid == "mon_zombie_necro" || tid == "mon_zombie_master" || tid == "mon_zombie_fireman" ||
       tid == "mon_zombie_hazmat" || tid == "mon_beekeeper") {
         return true;
     } else if (tid == "mon_boomer" || tid == "mon_zombie_gasbag" || tid == "mon_zombie_smoker") {
@@ -1451,4 +1505,16 @@ void monster::add_msg_player_or_npc(game_message_type type, const char *, const 
 bool monster::is_dead() const
 {
     return dead || is_dead_state();
+}
+
+item monster::to_item() const
+{
+    if( type->revert_to_itype.empty() ) {
+        return item();
+    }
+    // Birthday is wrong, but the item created here does not use it anyway (I hope).
+    item result( type->revert_to_itype, calendar::turn );
+    const int damfac = std::max( 1, 5 * hp / type->hp ); // 1 ... 5 (or more for some monsters with hp > type->hp)
+    result.damage = std::max( 0, 5 - damfac ); // 4 ... 0
+    return result;
 }

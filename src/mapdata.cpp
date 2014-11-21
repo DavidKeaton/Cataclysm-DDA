@@ -84,6 +84,7 @@ void init_ter_bitflags_map() {
     ter_bitflags_map["WALL"]                    = TFLAG_WALL;           // smells
     ter_bitflags_map["DEEP_WATER"]              = TFLAG_DEEP_WATER;     // Deep enough to submerge things
     ter_bitflags_map["HARVESTED"]               = TFLAG_HARVESTED;      // harvested.  will not bear fruit.
+    ter_bitflags_map["PERMEABLE"]               = TFLAG_PERMEABLE;      // gases can flow through.
 }
 
 void load_map_bash_item_drop_list(JsonArray ja, std::vector<map_bash_item_drop> &items) {
@@ -386,7 +387,7 @@ ter_id t_null,
     // Tree
     t_tree, t_tree_young, t_tree_apple, t_tree_apple_harvested, t_tree_pear, t_tree_pear_harvested, t_tree_cherry, t_tree_cherry_harvested,
     t_tree_peach, t_tree_peach_harvested, t_tree_apricot, t_tree_apricot_harvested, t_tree_plum, t_tree_plum_harvested,
-    t_tree_pine, t_tree_deadpine, t_underbrush, t_shrub, t_shrub_blueberry, t_shrub_strawberry, t_trunk,
+    t_tree_pine, t_tree_blackjack, t_tree_deadpine, t_underbrush, t_shrub, t_shrub_blueberry, t_shrub_strawberry, t_trunk,
     t_root_wall,
     t_wax, t_floor_wax,
     t_fence_v, t_fence_h, t_chainfence_v, t_chainfence_h, t_chainfence_posts,
@@ -401,6 +402,7 @@ ter_id t_null,
     // More embellishments than you can shake a stick at.
     t_sandbox, t_slide, t_monkey_bars, t_backboard,
     t_gas_pump, t_gas_pump_smashed,
+    t_diesel_pump, t_diesel_pump_smashed,
     t_atm,
     t_generator_broken,
     t_missile, t_missile_exploded,
@@ -422,7 +424,8 @@ ter_id t_null,
      t_pedestal_temple,
     // Temple tiles
     t_rock_red, t_rock_green, t_rock_blue, t_floor_red, t_floor_green, t_floor_blue,
-    t_switch_rg, t_switch_gb, t_switch_rb, t_switch_even, t_open_air, t_plut_generator;
+    t_switch_rg, t_switch_gb, t_switch_rb, t_switch_even, t_open_air, t_plut_generator,
+    t_pavement_bg_dp, t_pavement_y_bg_dp, t_sidewalk_bg_dp, t_guardrail_bg_dp;
 
 void set_ter_ids() {
     t_null=terfind("t_null");
@@ -567,6 +570,7 @@ void set_ter_ids() {
     t_tree_plum=terfind("t_tree_plum");
     t_tree_plum_harvested=terfind("t_tree_plum_harvested");
     t_tree_pine=terfind("t_tree_pine");
+    t_tree_blackjack=terfind("t_tree_blackjack");
     t_tree_deadpine=terfind("t_tree_deadpine");
     t_underbrush=terfind("t_underbrush");
     t_shrub=terfind("t_shrub");
@@ -613,6 +617,8 @@ void set_ter_ids() {
     t_backboard=terfind("t_backboard");
     t_gas_pump=terfind("t_gas_pump");
     t_gas_pump_smashed=terfind("t_gas_pump_smashed");
+    t_diesel_pump=terfind("t_diesel_pump");
+    t_diesel_pump_smashed=terfind("t_diesel_pump_smashed");
     t_atm=terfind("t_atm");
     t_generator_broken=terfind("t_generator_broken");
     t_missile=terfind("t_missile");
@@ -664,6 +670,10 @@ void set_ter_ids() {
     t_water_pump=terfind("t_water_pump");
     t_open_air=terfind("t_open_air");
     t_plut_generator = terfind("t_plut_generator");
+    t_pavement_bg_dp = terfind("t_pavement_bg_dp");
+    t_pavement_y_bg_dp = terfind("t_pavement_y_bg_dp");
+    t_sidewalk_bg_dp = terfind("t_sidewalk_bg_dp");
+    t_guardrail_bg_dp = terfind("t_guardrail_bg_dp");
 };
 
 furn_id furnfind(const std::string & id) {
@@ -680,7 +690,7 @@ furn_id f_null,
     f_barricade_road, f_sandbag_half, f_sandbag_wall,
     f_bulletin,
     f_indoor_plant,f_indoor_plant_y,
-    f_bed, f_toilet, f_makeshift_bed,
+    f_bed, f_toilet, f_makeshift_bed, f_straw_bed,
     f_sink, f_oven, f_woodstove, f_fireplace, f_bathtub,
     f_chair, f_armchair, f_sofa, f_cupboard, f_trashcan, f_desk, f_exercise,
     f_ball_mach, f_bench, f_lane, f_table, f_pool_table,
@@ -699,7 +709,8 @@ furn_id f_null,
     f_wood_keg,
     f_statue, f_egg_sackbw, f_egg_sackws, f_egg_sacke,
     f_flower_marloss,
-    f_floor_canvas;
+    f_floor_canvas,
+    f_tatami;
 
 void set_furn_ids() {
     f_null=furnfind("f_null");
@@ -717,6 +728,7 @@ void set_furn_ids() {
     f_bed=furnfind("f_bed");
     f_toilet=furnfind("f_toilet");
     f_makeshift_bed=furnfind("f_makeshift_bed");
+    f_straw_bed=furnfind("f_straw_bed");
     f_sink=furnfind("f_sink");
     f_oven=furnfind("f_oven");
     f_woodstove=furnfind("f_woodstove");
@@ -847,11 +859,26 @@ void check_furniture_and_terrain()
         const furn_t &f = *a;
         check_bash_items(f.bash, f.id, false);
         check_decon_items(f.deconstruct, f.id, false);
+        if( !f.open.empty() && furnmap.count( f.open ) == 0 ) {
+            debugmsg( "invalid furniture %s for opening %s", f.open.c_str(), f.id.c_str() );
+        }
+        if( !f.close.empty() && furnmap.count( f.close ) == 0 ) {
+            debugmsg( "invalid furniture %s for closing %s", f.close.c_str(), f.id.c_str() );
+        }
     }
     for(std::vector<ter_t>::const_iterator a = terlist.begin(); a != terlist.end(); ++a) {
         const ter_t &t = *a;
         check_bash_items(t.bash, t.id, true);
         check_decon_items(t.deconstruct, t.id, true);
+        if( !t.transforms_into.empty() && termap.count( t.transforms_into ) == 0 ) {
+            debugmsg( "invalid transforms_into %s for %s", t.transforms_into.c_str(), t.id.c_str() );
+        }
+        if( !t.open.empty() && termap.count( t.open ) == 0 ) {
+            debugmsg( "invalid terrain %s for opening %s", t.open.c_str(), t.id.c_str() );
+        }
+        if( !t.close.empty() && termap.count( t.close ) == 0 ) {
+            debugmsg( "invalid terrain %s for closing %s", t.close.c_str(), t.id.c_str() );
+        }
     }
 }
 

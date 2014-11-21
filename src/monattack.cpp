@@ -6,6 +6,7 @@
 #include "bodypart.h"
 #include "material.h"
 #include "json.h"
+#include "item_factory.h"
 #include "monstergenerator.h"
 #include "speech.h"
 #include "messages.h"
@@ -44,6 +45,11 @@ npc make_fake_npc(monster *z, int str, int dex, int inte, int per) {
     tmp.dex_cur = dex;
     tmp.int_cur = inte;
     tmp.per_cur = per;
+    if( z->friendly != 0 ) {
+        tmp.attitude = NPCATT_DEFEND;
+    } else {
+        tmp.attitude = NPCATT_KILL;
+    }
     return tmp;
 }
 
@@ -908,8 +914,8 @@ void mattack::fungus_big_blossom(monster *z, int index)
                 firealarm = true;
             }
             if (firealarm) {
-                g->m.field_at(i, j).removeField(fd_fire);
-                g->m.field_at(i, j).removeField(fd_smoke);
+                g->m.remove_field( i, j, fd_fire );
+                g->m.remove_field( i, j, fd_smoke );
                 g->m.add_field(i, j, fd_fungal_haze, 3);
             }
         }
@@ -1884,7 +1890,59 @@ void mattack::fear_paralyze(monster *z, int index)
 
 void mattack::photograph(monster *z, int index)
 {
-    if (z->faction_id == -1 || (within_visual_range(z, 6) < 0)) return;
+    if (z->faction_id == -1 || (within_visual_range(z, 6) < 0)) {
+        return;
+    }
+    
+    // Badges should NOT be swappable between roles.
+    // Hence separate checking.
+    // If you are in fact listed as a police officer
+    if (g->u.has_trait("PROF_POLICE")) {
+        // And you're wearing your badge
+        if (g->u.is_wearing("badge_deputy")) {
+            if (one_in(3)) {
+                add_msg(m_info, _("The %s flashes a LED and departs.  Human officer on scene."), z->name().c_str());
+                z->no_corpse_quiet = true;
+                z->no_extra_death_drops = true;
+                z->die(nullptr);
+                return;
+            } else {
+                add_msg(m_info, _("The %s acknowledges you as an officer responding, but hangs around to watch."), z->name().c_str());
+                add_msg(m_info, _("Probably some now-obsolete Internal Affairs subroutine..."));
+                z->reset_special(index); // Reset timer
+                return;
+            }
+        }
+    }
+    
+    if (g->u.has_trait("PROF_PD_DET")) {
+        // And you have your shield on
+        if (g->u.is_wearing("badge_detective")) {
+            if (one_in(4)) {
+                add_msg(m_info, _("The %s flashes a LED and departs.  Human officer on scene."), z->name().c_str());
+                z->no_corpse_quiet = true;
+                z->no_extra_death_drops = true;
+                z->die(nullptr);
+                return;
+            } else {
+                add_msg(m_info, _("The %s acknowledges you as an officer responding, but hangs around to watch."), z->name().c_str());
+                add_msg(m_info, _("Ops used to do that in case you needed backup..."));
+                z->reset_special(index); // Reset timer
+                return;
+            }
+        }
+    }
+    
+    if (g->u.has_trait("PROF_FED")) {
+        // And you're wearing your badge
+        if (g->u.is_wearing("badge_marshal")) {
+            add_msg(m_info, _("The %s flashes a LED and departs.  The Feds have this."), z->name().c_str());
+            z->no_corpse_quiet = true;
+            z->no_extra_death_drops = true;
+            z->die(nullptr);
+            return;
+        }
+    }
 
     z->reset_special(index); // Reset timer
     z->moves -= 150;
@@ -1921,10 +1979,11 @@ void mattack::tazer(monster *z, int index)
 
 void mattack::smg(monster *z, int index)
 {
+    const std::string ammo_type("9mm");
     // Make sure our ammo isn't weird.
-    if (z->ammo > 1000) {
-        debugmsg("Generated too much ammo (%d) for %s in mattack::smg", z->ammo, z->name().c_str());
-        z->ammo = 1000;
+    if (z->ammo[ammo_type] > 1000) {
+        debugmsg("Generated too much ammo (%d) for %s in mattack::smg", z->ammo[ammo_type], z->name().c_str());
+        z->ammo[ammo_type] = 1000;
     }
     int fire_t = 0;
 
@@ -1962,7 +2021,7 @@ void mattack::smg(monster *z, int index)
     }
     z->moves -= 150;   // It takes a while
 
-    if (z->ammo <= 0) {
+    if (z->ammo[ammo_type] <= 0) {
         if (one_in(3)) {
             g->sound(z->posx(), z->posy(), 2, _("a chk!"));
         } else if (one_in(4)) {
@@ -1974,11 +2033,11 @@ void mattack::smg(monster *z, int index)
         add_msg(m_warning, _("The %s fires its smg!"), z->name().c_str());
     }
     tmp.weapon = item("hk_mp5", 0);
-    tmp.weapon.curammo = dynamic_cast<it_ammo *>(itypes["9mm"]);
-    tmp.weapon.charges = std::max(z->ammo, 10);
-    z->ammo -= tmp.weapon.charges;
+    tmp.weapon.curammo = dynamic_cast<it_ammo *>(item_controller->find_template( ammo_type ));
+    tmp.weapon.charges = std::max(z->ammo[ammo_type], 10);
+    z->ammo[ammo_type] -= tmp.weapon.charges;
     tmp.fire_gun(target->xpos(), target->ypos(), true);
-    z->ammo += tmp.weapon.charges;
+    z->ammo[ammo_type] += tmp.weapon.charges;
     if (target == &g->u) {
         z->add_effect("targeted", 3);
     }
@@ -2036,7 +2095,7 @@ void mattack::laser(monster *z, int index)
         add_msg(m_warning, _("The %s's barrel spins and fires!"), z->name().c_str());
     }
     tmp.weapon = item("cerberus_laser", 0);
-    tmp.weapon.curammo = dynamic_cast<it_ammo *>(itypes["laser_capacitor"]);
+    tmp.weapon.curammo = dynamic_cast<it_ammo *>(item_controller->find_template( "laser_capacitor" ));
     tmp.weapon.charges = 100;
     tmp.fire_gun(target->xpos(), target->ypos(), true);
     if (target == &g->u) {
@@ -2046,10 +2105,11 @@ void mattack::laser(monster *z, int index)
 
 void mattack::rifle_tur(monster *z, int index)
 {
+    const std::string ammo_type("556");
     // Make sure our ammo isn't weird.
-    if (z->ammo > 2000) {
-        debugmsg("Generated too much ammo (%d) for %s in mattack::rifle_tur", z->ammo, z->name().c_str());
-        z->ammo = 2000;
+    if (z->ammo[ammo_type] > 2000) {
+        debugmsg("Generated too much ammo (%d) for %s in mattack::rifle_tur", z->ammo[ammo_type], z->name().c_str());
+        z->ammo[ammo_type] = 2000;
     }
     int fire_t = 0;
 
@@ -2088,7 +2148,7 @@ void mattack::rifle_tur(monster *z, int index)
     }
     z->moves -= 150;   // It takes a while
 
-    if (z->ammo <= 0) {
+    if (z->ammo[ammo_type] <= 0) {
         if (one_in(3)) {
             g->sound(z->posx(), z->posy(), 2, _("a chk!"));
         } else if (one_in(4)) {
@@ -2100,11 +2160,11 @@ void mattack::rifle_tur(monster *z, int index)
         add_msg(m_warning, _("The %s opens up with its rifle!"), z->name().c_str());
     }
     tmp.weapon = item("m4a1", 0);
-    tmp.weapon.curammo = dynamic_cast<it_ammo *>(itypes["556"]);
-    tmp.weapon.charges = std::max(z->ammo, 30);
-    z->ammo -= tmp.weapon.charges;
+    tmp.weapon.curammo = dynamic_cast<it_ammo *>(item_controller->find_template( ammo_type ));
+    tmp.weapon.charges = std::max(z->ammo[ammo_type], 30);
+    z->ammo[ammo_type] -= tmp.weapon.charges;
     tmp.fire_gun(target->xpos(), target->ypos(), true);
-    z->ammo += tmp.weapon.charges;
+    z->ammo[ammo_type] += tmp.weapon.charges;
     if (target == &g->u) {
         z->add_effect("targeted", 3);
     }
@@ -2112,10 +2172,11 @@ void mattack::rifle_tur(monster *z, int index)
 
 void mattack::frag_tur(monster *z, int index) // This is for the bots, not a standalone turret
 {
+    const std::string ammo_type("40mm_frag");
     // Make sure our ammo isn't weird.
-    if (z->ammo > 100) {
-        debugmsg("Generated too much ammo (%d) for %s in mattack::frag_tur", z->ammo, z->name().c_str());
-        z->ammo = 100;
+    if (z->ammo[ammo_type] > 100) {
+        debugmsg("Generated too much ammo (%d) for %s in mattack::frag_tur", z->ammo[ammo_type], z->name().c_str());
+        z->ammo[ammo_type] = 100;
     }
     int fire_t = 0;
 
@@ -2129,7 +2190,7 @@ void mattack::frag_tur(monster *z, int index) // This is for the bots, not a sta
     if (z->friendly != 0) {
         // Attacking monsters, not the player!
         int boo_hoo;
-        target = tmp.auto_find_hostile_target(18, boo_hoo, fire_t);
+        target = tmp.auto_find_hostile_target(38, boo_hoo, fire_t);
         if (target == NULL) {// Couldn't find any targets!
             if(boo_hoo > 0 && g->u_see(z->posx(), z->posy()) ) { // because that stupid oaf was in the way!
                 add_msg(m_warning, ngettext("Pointed in your direction, the %s emits an IFF warning beep.",
@@ -2145,20 +2206,20 @@ void mattack::frag_tur(monster *z, int index) // This is for the bots, not a sta
         if (within_visual_range(z, 38) < 0) return;
 
         if (!z->has_effect("targeted")) {
-            if (g->u_see(z->posx(), z->posy())) {
-                //~Potential grenading detected.
-                add_msg(m_warning, _("Those laser dots don't seem very friendly...") );
-            }
+            //~Potential grenading detected.
+            add_msg(m_warning, _("Those laser dots don't seem very friendly...") );
             g->sound(z->posx(), z->posy(), 10, _("Targeting."));
-            z->add_effect("targeted", 8);
-            z->moves -= 100;
+            z->add_effect("targeted", 4);
+            z->moves -= 150;
+            // Should give some ability to get behind cover,
+            // even though it's patently unrealistic.
             return;
         }
         target = &g->u;
     }
     z->moves -= 150;   // It takes a while
 
-    if (z->ammo <= 0) {
+    if (z->ammo[ammo_type] <= 0) {
         if (one_in(3)) {
             g->sound(z->posx(), z->posy(), 2, _("a chk!"));
         } else if (one_in(4)) {
@@ -2170,11 +2231,11 @@ void mattack::frag_tur(monster *z, int index) // This is for the bots, not a sta
         add_msg(m_warning, _("The %s's grenade launcher fires!"), z->name().c_str());
     }
     tmp.weapon = item("mgl", 0);
-    tmp.weapon.curammo = dynamic_cast<it_ammo *>(itypes["40mm_frag"]);
-    tmp.weapon.charges = std::max(z->ammo, 30);
-    z->ammo -= tmp.weapon.charges;
+    tmp.weapon.curammo = dynamic_cast<it_ammo *>(item_controller->find_template( ammo_type ));
+    tmp.weapon.charges = std::max(z->ammo[ammo_type], 30);
+    z->ammo[ammo_type] -= tmp.weapon.charges;
     tmp.fire_gun(target->xpos(), target->ypos(), true);
-    z->ammo += tmp.weapon.charges;
+    z->ammo[ammo_type] += tmp.weapon.charges;
     if (target == &g->u) {
         z->add_effect("targeted", 3);
     }
@@ -2182,10 +2243,11 @@ void mattack::frag_tur(monster *z, int index) // This is for the bots, not a sta
 
 void mattack::bmg_tur(monster *z, int index)
 {
+    const std::string ammo_type("50bmg");
     // Make sure our ammo isn't weird.
-    if (z->ammo > 500) {
-        debugmsg("Generated too much ammo (%d) for %s in mattack::bmg_tur", z->ammo, z->name().c_str());
-        z->ammo = 500;
+    if (z->ammo[ammo_type] > 500) {
+        debugmsg("Generated too much ammo (%d) for %s in mattack::bmg_tur", z->ammo[ammo_type], z->name().c_str());
+        z->ammo[ammo_type] = 500;
     }
     int fire_t = 0;
 
@@ -2199,7 +2261,7 @@ void mattack::bmg_tur(monster *z, int index)
     if (z->friendly != 0) {
         // Attacking monsters, not the player!
         int boo_hoo;
-        target = tmp.auto_find_hostile_target(18, boo_hoo, fire_t);
+        target = tmp.auto_find_hostile_target(40, boo_hoo, fire_t);
         if (target == NULL) {// Couldn't find any targets!
             if(boo_hoo > 0 && g->u_see(z->posx(), z->posy()) ) { // because that stupid oaf was in the way!
                 add_msg(m_warning, ngettext("Pointed in your direction, the %s emits an IFF warning beep.",
@@ -2215,10 +2277,8 @@ void mattack::bmg_tur(monster *z, int index)
         if (within_visual_range(z, 40) < 0) return;
 
         if (!z->has_effect("targeted")) {
-            if (g->u_see(z->posx(), z->posy())) {
-                //~There will be a .50BMG shell sent at high speed to your location next turn.
-                add_msg(m_warning, _("Why is there a laser dot on your torso..?"));
-            }
+            //~There will be a .50BMG shell sent at high speed to your location next turn.
+            add_msg(m_warning, _("Why is there a laser dot on your torso..?"));
             g->sound(z->posx(), z->posy(), 10, _("Hostile detected."));
             z->add_effect("targeted", 8);
             z->moves -= 100;
@@ -2228,7 +2288,7 @@ void mattack::bmg_tur(monster *z, int index)
     }
     z->moves -= 150;   // It takes a while
 
-    if (z->ammo <= 0) {
+    if (z->ammo[ammo_type] <= 0) {
         if (one_in(3)) {
             g->sound(z->posx(), z->posy(), 2, _("a chk!"));
         } else if (one_in(4)) {
@@ -2241,11 +2301,11 @@ void mattack::bmg_tur(monster *z, int index)
         add_msg(m_warning, _("The %s aims and fires!"), z->name().c_str());
     }
     tmp.weapon = item("m107a1", 0);
-    tmp.weapon.curammo = dynamic_cast<it_ammo *>(itypes["50bmg"]);
-    tmp.weapon.charges = std::max(z->ammo, 30);
-    z->ammo -= tmp.weapon.charges;
+    tmp.weapon.curammo = dynamic_cast<it_ammo *>(item_controller->find_template( ammo_type ));
+    tmp.weapon.charges = std::max(z->ammo[ammo_type], 30);
+    z->ammo[ammo_type] -= tmp.weapon.charges;
     tmp.fire_gun(target->xpos(), target->ypos(), false);
-    z->ammo += tmp.weapon.charges;
+    z->ammo[ammo_type] += tmp.weapon.charges;
     if (target == &g->u) {
         z->add_effect("targeted", 3);
     }
@@ -2254,26 +2314,27 @@ void mattack::bmg_tur(monster *z, int index)
 void mattack::tank_tur(monster *z, int index)
 {
     (void)index; //unused
+    const std::string ammo_type("120mm_HEAT");
     // Make sure our ammo isn't weird.
-    if (z->ammo > 40) {
-        debugmsg("Generated too much ammo (%d) for %s in mattack::tank_tur", z->ammo, z->name().c_str());
-        z->ammo = 40;
+    if (z->ammo[ammo_type] > 40) {
+        debugmsg("Generated too much ammo (%d) for %s in mattack::tank_tur", z->ammo[ammo_type], z->name().c_str());
+        z->ammo[ammo_type] = 40;
     }
     int fire_t = 0;
 
     // kevingranade KA101: yes, but make it really inaccurate
     // Sure thing.
     npc tmp = make_fake_npc(z, 12, 8, 8, 8);
-    tmp.skillLevel("launcher").level(2);
-    tmp.skillLevel("gun").level(2);
+    tmp.skillLevel("launcher").level(1);
+    tmp.skillLevel("gun").level(1);
 
     z->reset_special(index); // Reset timer
-    Creature *target = NULL;
+    point aim_point;
 
     if (z->friendly != 0) {
         // Attacking monsters, not the player!
         int boo_hoo;
-        target = tmp.auto_find_hostile_target(18, boo_hoo, fire_t);
+        Creature *target = tmp.auto_find_hostile_target(48, boo_hoo, fire_t);
         if (target == NULL) {// Couldn't find any targets!
             if(boo_hoo > 0 && g->u_see(z->posx(), z->posy()) ) { // because that stupid oaf was in the way!
                 add_msg(m_warning, ngettext("Pointed in your direction, the %s emits an IFF warning beep.",
@@ -2283,27 +2344,37 @@ void mattack::tank_tur(monster *z, int index)
             }
             return;
         }
+        aim_point = target->pos();
     } else {
         // Not friendly; hence, firing at the player
         // (Be grateful for safety precautions.)
-        if (within_visual_range(z, 50) < 0) return;
+        if (within_visual_range(z, 48) < 0) return;
 
         if (!z->has_effect("targeted")) {
-            if (g->u_see(z->posx(), z->posy())) {
-                //~ There will be a 120mm HEAT shell sent at high speed to your location next turn.
-                add_msg(m_warning, _("You're not sure why you've got a laser dot on you...") );
-            }
+            //~ There will be a 120mm HEAT shell sent at high speed to your location next turn.
+            add_msg(m_warning, _("You're not sure why you've got a laser dot on you...") );
             //~ Sound of a tank turret swiveling into place
             g->sound(z->posx(), z->posy(), 10, _("whirrrrrclick."));
-            z->add_effect("targeted", 4);
-            z->moves -= 100;
+            z->add_effect("targeted", 3);
+            z->moves -= 200;
+            // Should give some ability to get behind cover,
+            // even though it's patently unrealistic.
             return;
         }
-        target = &g->u;
+        aim_point = g->u.pos();
+        // Target the vehicle itself instead if there is one.
+        if( g->u.in_vehicle ) {
+            vehicle *veh = g->m.veh_at( g->u.xpos(), g->u.ypos() );
+            if( veh ) {
+                veh->center_of_mass( aim_point.x, aim_point.y );
+                aim_point.x += veh->global_x();
+                aim_point.y += veh->global_y();
+            }
+        }
     }
     z->moves -= 150;   // It takes a while
 
-    if (z->ammo <= 0) {
+    if (z->ammo[ammo_type] <= 0) {
         if (one_in(3)) {
             g->sound(z->posx(), z->posy(), 2, _("a chk!"));
         } else if (one_in(4)) {
@@ -2315,14 +2386,11 @@ void mattack::tank_tur(monster *z, int index)
         add_msg(m_warning, _("The %s's 120mm cannon fires!"), z->name().c_str());
     }
     tmp.weapon = item("TANK", 0);
-    tmp.weapon.curammo = dynamic_cast<it_ammo *>(itypes["120mm_HEAT"]);
-    tmp.weapon.charges = std::max(z->ammo, 5);
-    z->ammo -= tmp.weapon.charges;
-    tmp.fire_gun(target->xpos(), target->ypos(), false);
-    z->ammo += tmp.weapon.charges;
-    if (target == &g->u) {
-        z->add_effect("targeted", 3);
-    }
+    tmp.weapon.curammo = dynamic_cast<it_ammo *>(item_controller->find_template( ammo_type ));
+    tmp.weapon.charges = std::max(z->ammo[ammo_type], 5);
+    z->ammo[ammo_type] -= tmp.weapon.charges;
+    tmp.fire_gun( aim_point.x, aim_point.y, false );
+    z->ammo[ammo_type] += tmp.weapon.charges;
 }
 
 void mattack::searchlight(monster *z, int index)
@@ -2662,9 +2730,15 @@ void mattack::multi_robot(monster *z, int index)
         mode = 3;
     } else if (rl_dist(z->posx(), z->posy(), g->u.posx, g->u.posy) <= 30) {
         mode = 4;
-    } else if ((rl_dist(z->posx(), z->posy(), g->u.posx, g->u.posy) >= 35) ||
-      (rl_dist(z->posx(), z->posy(), g->u.posx, g->u.posy) >= 25 && g->u.in_vehicle)) {
-        mode = 5;
+    } else if (g->u.in_vehicle || g->u.has_trait("HUGE") || g->u.has_trait("HUGE_OK") ||
+      z->friendly != 0) {
+        // Primary only kicks in if you're in a vehicle or are big enough to be mistaken for one.
+        // Or if you've hacked it so the turret's on your side.  ;-)
+        if ( (rl_dist(z->posx(), z->posy(), g->u.posx, g->u.posy) >= 35) &&
+          (rl_dist(z->posx(), z->posy(), g->u.posx, g->u.posy) < 50 )) {
+            // Enforced max-range of 50.
+            mode = 5;
+        }
     }
 
     if (mode == 0) {
@@ -3049,7 +3123,7 @@ void mattack::darkman(monster *z, int index)
             }
         }
     }
-    int free_index = rng( 0, -1 );
+    int free_index = rng( 0, free.size() - 1 );
     monster tmp( GetMType("mon_shadow") );
     z->moves -= 10;
     tmp.spawn( free[free_index].x, free[free_index].y );
@@ -3352,12 +3426,11 @@ void mattack::riotbot(monster *z, int index)
         //~ Sound of a riotbot using its blinding flash
         g->sound(x, y, 3, _("fzzzzzt"));
 
-        g->m.add_field(x, y, fd_dazzling, 1);
-
         std::vector <point> traj = line_to(monx, mony, x, y, 0);
-        traj.erase(traj.begin());
-
         for (auto it = traj.begin(); it != traj.end(); ++it) {
+            if( !g->m.trans( it->x, it->y ) ) {
+                break;
+            }
             g->m.add_field(it->x, it->y, fd_dazzling, 1);
         }
         return;

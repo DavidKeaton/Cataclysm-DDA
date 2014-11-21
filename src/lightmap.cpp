@@ -73,7 +73,7 @@ void map::generate_lightmap()
         for(int sy = 0; sy < LIGHTMAP_CACHE_Y; ++sy) {
             const ter_id terrain = ter(sx, sy);
             const std::vector<item> &items = i_at(sx, sy);
-            field &current_field = field_at(sx, sy);
+            const field &current_field = field_at(sx, sy);
             // When underground natural_light is 0, if this changes we need to revisit
             // Only apply this whole thing if the player is inside,
             // buildings will be shadowed when outside looking in.
@@ -105,14 +105,8 @@ void map::generate_lightmap()
                 add_light_source(sx, sy, 35 );
             }
 
-            field_entry *cur = NULL;
-            for( auto field_list_it = current_field.getFieldStart();
-                field_list_it != current_field.getFieldEnd(); ++field_list_it ) {
-                cur = field_list_it->second;
-
-                if(cur == NULL) {
-                    continue;
-                }
+            for( auto &fld : current_field ) {
+                const field_entry *cur = &fld.second;
                 // TODO: [lightmap] Attach light brightness to fields
                 switch(cur->getFieldType()) {
                 case fd_fire:
@@ -166,17 +160,21 @@ void map::generate_lightmap()
     }
 
     for (size_t i = 0; i < g->num_zombies(); ++i) {
-        int mx = g->zombie(i).posx();
-        int my = g->zombie(i).posy();
+        auto &critter = g->zombie(i);
+        if(critter.is_hallucination()) {
+            continue;
+        }
+        int mx = critter.posx();
+        int my = critter.posy();
         if (INBOUNDS(mx, my)) {
-            if (g->zombie(i).has_effect("onfire")) {
+            if (critter.has_effect("onfire")) {
                 apply_light_source(mx, my, 3, trigdist);
             }
             // TODO: [lightmap] Attach natural light brightness to creatures
             // TODO: [lightmap] Allow creatures to have light attacks (ie: eyebot)
             // TODO: [lightmap] Allow creatures to have facing and arc lights
-            if (g->zombie(i).type->luminance > 0) {
-                apply_light_source(mx, my, g->zombie(i).type->luminance, trigdist);
+            if (critter.type->luminance > 0) {
+                apply_light_source(mx, my, critter.type->luminance, trigdist);
             }
         }
     }

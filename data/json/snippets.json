@@ -110,6 +110,14 @@
     },{
         "type" : "snippet",
         "category" : "flier",
+        "text" : "This is an advertisement for Leadworks LLC handguns.  It shows a picture of a bionic police officer assisting a young couple, who were being attacked by a gang of ruffians.  The caption reads: \"You don't have to void your warranty or wear out your thumb to achieve felon-stopping firepower. The L39B, tried and true by our fine cyborgs in blue, is available in .45 ACP for that extra punch, and we offer semiautomatic (but equally robust!) versions for the civilian market.  Leadworks, LLC.\""
+    },{
+        "type" : "snippet",
+        "category" : "flier",
+        "text" : "This is an advertisement for Leadworks LLC modular weapons.  It shows a picture of an overworked-yet-grateful police sergeant assembling a sleek rifle, with similar-looking weapons racked neatly behind her.  The caption reads: \"Leadworks is proud to offer the L523 modular weapon system. No more must armorers stock and maintain stacks and stacks of rifles, carbines, and squad support weapons, juggling multiple incompatible ammunition types! Just procure a base unit for every trooper, and use our lightweight and portable conversion kits to swap from house-to-house CQB carbine to rooftop-patrol DSR, safely and cleanly!\""
+    },{
+        "type" : "snippet",
+        "category" : "flier",
         "text" : "This is a public notice from the Centers for Disease Control.  Its message, repeated in several languages, reads: Due to the rising threat of so-called \"Green Fever\" the CDC would like to remind the public to cover your nose and mouth with a tissue when you cough or sneeze and wash your hands frequently with soap and water.  In light of recent events, the CDC also recommends an annual flu vaccine for everyone 6 months of age and older."
     },{
         "type" : "snippet",
@@ -138,7 +146,7 @@
     },{
         "type" : "snippet",
         "category": "flier",
-        "text": "This is a flyer for a fast food chain.  In it, a man is placing an order with an attractive woman wearing a bright green shirt in the window with two happy children sitting in the back seat.  The poster reads \"Burgers, fries, and a Smile.\" Down in one corner is a company logo."
+        "text": "This is a flier for a fast food chain.  In it, a man is placing an order with an attractive woman wearing a bright green shirt in the window with two happy children sitting in the back seat.  The flier reads \"Burgers, fries, and a Smile.\" Down in one corner is a company logo."
     },{
         "type" : "snippet",
         "category": "flier",
@@ -146,7 +154,7 @@
     },{
         "type" : "snippet",
         "category": "flier",
-        "text": "This is a flyer for a local pizza chain.  On it is a picture of a cartoon Italian holding a pizza, with the words \"its a goooood pizza\" written above his head."
+        "text": "This is a flyer for a local pizza chain.  On it is a picture of a cartoon Italian holding a pizza, with the words \"It's a goooood pizza\" written above his head."
     },{
         "type" : "snippet",
         "category": "flier",
@@ -170,11 +178,11 @@
     },{
         "type" : "snippet",
         "category": "flier",
-        "text": "This is a flyer for a fast food chain.  In it, a man is placing an order with an attractive woman wearing a bright green shirt in the window with two happy children in the back seat.  The poster reads \"Burgers, fries, and a Smile.\" down in one corner is a company logo.  Someone has gone to town on this one with a permanent marker.  It is now covered in rude images and racial epithets."
+        "text": "This is a flier for a fast food chain.  In it, a man is placing an order with an attractive woman wearing a bright green shirt in the window with two happy children in the back seat.  The flier reads \"Burgers, fries, and a Smile.\" down in one corner is a company logo.  Someone has gone to town on this one with a permanent marker.  It is now covered in rude images and racial epithets."
     },{
         "type" : "snippet",
         "category": "flier",
-        "text": "This is a flyer for a local pizza chain.  On it is a picture of a cartoon Italian holding a pizza, with the words \"its a goooood pizza\" written above his head.  Someone has drawn an exaggerated mustache on the cartoon Italian, along with a pair of crude, oversized breasts."
+        "text": "This is a flier for a local pizza chain.  On it is a picture of a cartoon Italian holding a pizza, with the words \"It's a goooood pizza\" written above his head.  Someone has drawn an exaggerated mustache on the cartoon Italian, along with a pair of crude, oversized breasts."
     },{
         "type" : "snippet",
         "category": "flier",

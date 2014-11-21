@@ -375,6 +375,7 @@ void mapgen_function_json::setup_setmap( JsonArray &parray ) {
     setmap_opmap[ "furniture" ] = JMAPGEN_SETMAP_FURN;
     setmap_opmap[ "trap" ] = JMAPGEN_SETMAP_TRAP;
     setmap_opmap[ "radiation" ] = JMAPGEN_SETMAP_RADIATION;
+    setmap_opmap[ "bash" ] = JMAPGEN_SETMAP_BASH;
     std::map<std::string, jmapgen_setmap_op>::iterator sm_it;
     jmapgen_setmap_op tmpop;
     int setmap_optype = 0;
@@ -432,6 +433,8 @@ void mapgen_function_json::setup_setmap( JsonArray &parray ) {
             if ( ! load_jmapgen_int(pjo, "amount", tmp_i.val, tmp_i.valmax) ) {
                 err = string_format("set %s: bad/missing value for 'amount'",tmpval.c_str() ); throw err;
             }
+        } else if (tmpop == JMAPGEN_SETMAP_BASH){
+            //suppress warning
         } else {
             if ( ! pjo.has_string("id") ) {
                 err = string_format("set %s: bad/missing value for 'id'",tmpval.c_str() ); throw err;
@@ -499,7 +502,7 @@ void mapgen_function_json::setup_place_group(JsonArray &parray ) {
 
          if ( jsi.read("item", tmpval ) ) {
              tmpop = JMAPGEN_PLACEGROUP_ITEM;
-             if ( item_controller->id_from(tmpval) == "MISSING_ITEM" ) {
+             if ( !item_controller->has_group( tmpval ) ) {
                  jsi.throw_error(string_format("place_group: no such item group '%s'",tmpval.c_str() ));
              }
          } else if ( jsi.read("monster", tmpval ) ) {
@@ -926,7 +929,9 @@ bool jmapgen_setmap::apply( map *m ) {
                 case JMAPGEN_SETMAP_RADIATION: {
                     m->set_radiation( x.get(), y.get(), val.get());
                 } break;
-
+                case JMAPGEN_SETMAP_BASH: {
+                    m->bash( x.get(), y.get(), 9999);
+                } break;
 
                 case JMAPGEN_SETMAP_LINE_TER: {
                     m->draw_line_ter( (ter_id)val.get(), x.get(), y.get(), x2.get(), y2.get() );
@@ -3904,7 +3909,7 @@ ff.......|....|WWWWWWWW|\n\
         }
 
         if ( ice_lab ) {
-            int temperature = -20 + 30 * (g->levz);
+            int temperature = -20 + 30 * zlevel;
             set_temperature(x, y, temperature);
 
             tw = is_ot_type("ice_lab", t_north) ? 0 : 2;
@@ -4537,8 +4542,8 @@ ff.......|....|WWWWWWWW|\n\
             // Start with all rock floor
             square(this, t_rock_floor, 0, 0, SEEX * 2 - 1, SEEY * 2 - 1);
             // We always start at the south and go north.
-            // We use (g->levx / 2 + g->levz) % 5 to guarantee that rooms don't repeat.
-            switch (1 + int(g->levy / 2 + g->levz) % 4) {// TODO: More varieties!
+            // We use (y / 2 + z) % 4 to guarantee that rooms don't repeat.
+            switch (1 + abs(abs_sub.y / 2 + zlevel + 4) % 4) {// TODO: More varieties!
 
             case 1: // Flame bursts
                 square(this, t_rock, 0, 0, SEEX - 1, SEEY * 2 - 1);
@@ -7356,7 +7361,7 @@ bb|,,,,,,,,,,,,,,,,,,|##\n\
                         } else {
                             add_spawn("mon_zombie_brute", rng(0, 1), i, j);
                         }
-                    }					
+                    }
                 }
             }
             if (t_west == "prison_b_entrance") {
@@ -7834,6 +7839,9 @@ s_____,_____,_____,_____\n",
                 } else if (this->furn(i, j) == f_counter && x_in_y(1, 5)) {
                     place_items("magazines", 30,  i,  j, i,  j, false, 0);
                 }
+                if (this->furn(i, j) == f_bed) {
+                    place_items("bed", 60, i, j, i, j, false, 0);
+                }
             }
         }
         place_spawns("GROUP_ZOMBIE", 2, 0, 0, 23, 23, density);
@@ -7893,6 +7901,9 @@ ________________________\n\
                     place_items("dresser", 70,  i,  j, i,  j, false, 0);
                 } else if (this->furn(i, j) == f_counter && x_in_y(1, 5)) {
                     place_items("magazines", 30,  i,  j, i,  j, false, 0);
+                }
+                if (this->furn(i, j) == f_bed) {
+                    place_items("bed", 60, i, j, i, j, false, 0);
                 }
             }
         }
@@ -7967,6 +7978,9 @@ ____,_____,_____,_____s\n",
                 } else if (this->furn(i, j) == f_counter && x_in_y(1, 5)) {
                     place_items("magazines", 30,  i,  j, i,  j, false, 0);
                 }
+                if (this->furn(i, j) == f_bed) {
+                    place_items("bed", 60, i, j, i, j, false, 0);
+                }
             }
         }
         place_spawns("GROUP_ZOMBIE", 2, 0, 0, 23, 23, density);
@@ -8034,6 +8048,9 @@ s    |c....|c....|c....|\n",
                     }
                 } else if (this->furn(i, j) == f_sink && x_in_y(2, 5)) {
                     spawn_item(i, j, "towel", 3);
+                }
+                if (this->furn(i, j) == f_bed) {
+                    place_items("bed", 60, i, j, i, j, false, 0);
                 }
             }
         }
@@ -8107,6 +8124,9 @@ c...d|t.........t|....c|\n",
                 } else if (this->furn(i, j) == f_sink && x_in_y(2, 5)) {
                     spawn_item(i, j, "towel", 3);
                 }
+                if (this->furn(i, j) == f_bed) {
+                    place_items("bed", 60, i, j, i, j, false, 0);
+                }
             }
         }
         if (density > 1) {
@@ -8178,6 +8198,9 @@ h....|h....|h....|    s \n\
                     }
                 } else if (this->furn(i, j) == f_sink && x_in_y(2, 5)) {
                     spawn_item(i, j, "towel", 3);
+                }
+                if (this->furn(i, j) == f_bed) {
+                    place_items("bed", 60, i, j, i, j, false, 0);
                 }
             }
         }
@@ -11040,10 +11063,17 @@ void map::place_spawns(std::string group, const int chance,
 
 void map::place_gas_pump(int x, int y, int charges)
 {
-    item gas("gasoline", 0);
-    gas.charges = charges;
-    add_item(x, y, gas);
-    ter_set(x, y, t_gas_pump);
+    if (one_in(6)) {
+        item diesel("diesel", 0);
+        diesel.charges = charges;
+        add_item(x, y, diesel);
+        ter_set(x, y, t_diesel_pump);
+    } else {
+        item gas("gasoline", 0);
+        gas.charges = charges;
+        add_item(x, y, gas);
+        ter_set(x, y, t_gas_pump);
+    }
 }
 
 void map::place_toilet(int x, int y, int charges)
@@ -12979,7 +13009,7 @@ void map::add_extra(map_extra type)
         line(this, t_fence_barbed, SEEX * 2 - 3, 13, SEEX * 2 - 3, 19);
         line(this, t_fence_barbed, 3, 4, 3, 10);
         line(this, t_fence_barbed, 1, 13, 1, 19);
-        if (one_in(3)) {  // Chicken delivvery truck
+        if (one_in(3)) {  // Chicken delivery truck
             add_vehicle("military_cargo_truck", 12, SEEY * 2 - 5, 0);
             add_spawn("mon_chickenbot", 1, 12, 12);
         } else if (one_in(2)) {  // TAAANK
@@ -13280,9 +13310,7 @@ void map::add_extra(map_extra type)
                 if (rng(1, 9) >= trig_dist(x, y, i, j)) {
                     marlossify(i, j);
                     if (one_in(15)) {
-                        monster creature(GetMType(monids[rng(0, 4)]));
-                        creature.spawn(i, j);
-                        g->add_zombie(creature);
+                        add_spawn( monids[rng( 0, 4 )], 1, i, j );
                     }
                 }
             }
@@ -13308,6 +13336,7 @@ void map::create_anomaly(int cx, int cy, artifact_natural_property prop)
 {
     rough_circle(this, t_dirt, cx, cy, 11);
     rough_circle_furn(this, f_rubble, cx, cy, 5);
+    furn_set(cx, cy, f_null);
     switch (prop) {
     case ARTPROP_WRIGGLING:
     case ARTPROP_MOVING:

@@ -15,6 +15,7 @@
 #include "trap.h"
 #include "mapdata.h"
 #include "translations.h"
+#include "item_factory.h"
 #include <map>
 #include <set>
 #include <algorithm>
@@ -1566,7 +1567,7 @@ void player::load_legacy(std::stringstream & dump)
     if (sTemp == "TRAITS_END") {
         break;
     } else {
-        my_traits.push_back(sTemp);
+        my_traits.insert(sTemp);
     }
  }
 
@@ -1575,7 +1576,7 @@ void player::load_legacy(std::stringstream & dump)
     if (sTemp == "MUTATIONS_END") {
         break;
     } else {
-        my_mutations.push_back(sTemp);
+        my_mutations.insert(sTemp);
     }
  }
 
@@ -1597,7 +1598,7 @@ void player::load_legacy(std::stringstream & dump)
  for (int i = 0; i < num_recipes; ++i)
  {
   dump >> rec_name;
-  learned_recipes[rec_name] = recipe_by_name(rec_name);
+  learned_recipes[rec_name] = (recipe *)recipe_by_name(rec_name);
  }
 
  int numstyles;
@@ -1648,10 +1649,11 @@ void player::load_legacy(std::stringstream & dump)
   std::string item_id;
   dump >> mortype >> item_id;
   mortmp.type = morale_type(mortype);
-  if (itypes.find(item_id) == itypes.end())
-   mortmp.item_type = NULL;
-  else
-   mortmp.item_type = itypes[item_id];
+        if( item_controller->has_template( item_id ) ) {
+            mortmp.item_type = item_controller->find_template( item_id );
+        } else {
+            mortmp.item_type = nullptr;
+        }
 
   dump >> mortmp.bonus >> mortmp.duration >> mortmp.decay_start
        >> mortmp.age;
@@ -1742,7 +1744,7 @@ void npc::load_legacy(std::stringstream & dump) {
     if (sTemp == "TRAITS_END") {
         break;
     } else {
-        my_traits.push_back(sTemp);
+        my_traits.insert(sTemp);
     }
  }
 
@@ -1932,6 +1934,11 @@ void item::load_legacy(std::stringstream & dump) {
         name = name.substr(2, name.size() - 3); // s/^ '(.*)'$/\1/
     }
 
+    if( idtmp == "UPS_on" ) {
+        idtmp = "UPS_off";
+    } else if( idtmp == "adv_UPS_on" ) {
+        idtmp = "adv_UPS_off" ;
+    }
     make(idtmp);
 
     invlet = char(lettmp);
@@ -1941,7 +1948,7 @@ void item::load_legacy(std::stringstream & dump) {
         active = true;
     }
     if (ammotmp != "null") {
-        curammo = dynamic_cast<it_ammo*>(itypes[ammotmp]);
+        curammo = dynamic_cast<it_ammo*>(item_controller->find_template( ammotmp ));
     } else {
         curammo = NULL;
     }

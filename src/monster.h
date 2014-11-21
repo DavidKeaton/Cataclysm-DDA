@@ -188,6 +188,10 @@ class monster : public Creature, public JsonSerializer, public JsonDeserializer
 
         /** Returns innate monster bash skill, without calculating additional from helpers */
         int bash_skill();
+        int bash_estimate();
+        /** Returns ability of monster and any cooperative helpers to
+         * bash the designated target.  **/
+        int group_bash_skill( point target );
 
         void stumble(bool moved);
         void knock_back_from(int posx, int posy);
@@ -195,6 +199,7 @@ class monster : public Creature, public JsonSerializer, public JsonDeserializer
         // Combat
         bool is_fleeing(player &u) const; // True if we're fleeing
         monster_attitude attitude(player *u = NULL) const; // See the enum above
+        Attitude attitude_to( const Creature &other ) const override;
         int morale_level(player &u); // Looks at our HP etc.
         void process_triggers(); // Process things that anger/scare us
         void process_trigger(monster_trigger trig, int amount); // Single trigger
@@ -306,7 +311,14 @@ class monster : public Creature, public JsonSerializer, public JsonDeserializer
         int staircount;
 
         // Ammunition if we use a gun.
-        int ammo;
+        std::map<std::string, int> ammo;
+
+        /**
+         * Convert this monster into an item (see @ref mtype::revet_to_itype).
+         * Only useful for robots and the like, the monster must have at least
+         * a non-empty item id as revet_to_itype.
+         */
+        item to_item() const;
 
     private:
         std::vector<int> sp_timeout;
@@ -315,6 +327,8 @@ class monster : public Creature, public JsonSerializer, public JsonDeserializer
         bool dead;
         /** Attack another monster */
         void hit_monster(monster &other);
+        /** Legacy loading logic for monsters that are packing ammo. **/
+        void normalize_ammo( const int old_ammo );
 
     protected:
         void store(JsonOut &jsout) const;

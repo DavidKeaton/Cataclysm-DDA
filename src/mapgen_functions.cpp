@@ -514,14 +514,15 @@ void mapgen_forest_general(map *m, oter_id terrain_type, mapgendata dat, int tur
             }
             int rn = rng(0, forest_chance);
             if ((forest_chance > 0 && rn > 13) || one_in(100 - forest_chance)) {
-                std::array<std::array<int, 9>, 2> tree_chances = {{
+                std::array<std::array<int, 10>, 2> tree_chances = {{
                         // todo: JSONize this array!
                         // Ensure that these one_in chances
                         // (besides the last) don't add up to more than 1 in 1
                         // Reserve the last one (1 in 1) for simple trees that fill up the rest.
-                        {{ 250, 300, 300, 350, 350, 350, 128, 16, 1 }},
+                        {{ 250, 300, 300, 350, 350, 350, 128, 16, 16, 1 }},
                         {{ t_tree_apple, t_tree_pear, t_tree_cherry, t_tree_peach,
-                           t_tree_apricot, t_tree_plum, t_tree_deadpine, t_tree_pine, t_tree}}
+                           t_tree_apricot, t_tree_plum, t_tree_deadpine, t_tree_pine, t_tree_blackjack,
+                           t_tree}}
                     }};
                 double earlier_chances = 0;
                 // Remember the earlier chances to calculate the sliding errors
@@ -1583,15 +1584,17 @@ void mapgen_bridge(map *m, oter_id terrain_type, mapgendata dat, int turn, float
     (void)dat;
     for (int i = 0; i < SEEX * 2; i++) {
         for (int j = 0; j < SEEY * 2; j++) {
-            if (i < 4 || i >= SEEX * 2 - 4) {
+            if (i < 2 || i >= SEEX * 2 - 2) {
                 m->ter_set(i, j, t_water_dp);
-            } else if (i == 4 || i == SEEX * 2 - 5) {
-                m->ter_set(i, j, t_railing_v);
+            } else if (i == 2 || i == SEEX * 2 - 3) {
+                m->ter_set(i, j, t_guardrail_bg_dp);
+            } else if (i == 3 || i == SEEX * 2 - 4) {
+                m->ter_set(i, j, t_sidewalk_bg_dp);
             } else {
                 if ((i == SEEX - 1 || i == SEEX) && j % 4 != 0) {
-                    m->ter_set(i, j, t_pavement_y);
+                    m->ter_set(i, j, t_pavement_y_bg_dp);
                 } else {
-                    m->ter_set(i, j, t_pavement);
+                    m->ter_set(i, j, t_pavement_bg_dp);
                 }
             }
         }
@@ -2026,9 +2029,13 @@ void mapgen_gas_station(map *m, oter_id terrain_type, mapgendata dat, int, float
         else vset2 += left_w;
         m->place_vending(vset2,top_w-1, type2);
     }
-    //ATM
     if(rng(0,1)) {
+        //ATM
         m->ter_set(vset - 1, top_w-1, t_atm);
+    } else {
+        //charging rack
+        m->furn_set(vset - 1, top_w-1, f_rack);
+        m->place_items("gas_charging_rack", 100, vset - 1, top_w-1, vset - 1, top_w-1, false, 0);
     }
     //
     m->ter_set(center_w, rng(middle_w + 1, bottom_w - 1), t_door_c);
@@ -3695,6 +3702,18 @@ void mapgen_shelter(map *m, oter_id, mapgendata dat, int, float) {
                                    mapf::basic_bind("b c l", f_bench, f_counter, f_locker));
         computer * tmpcomp = m->add_computer(SEEX + 6, 5, _("Evac shelter computer"), 0);
         tmpcomp->add_option(_("Emergency Message"), COMPACT_EMERG_MESS, 0);
+        int lx = rng(5 , 8);
+        // The shelter does have some useful stuff in case of winter problems!
+        m->spawn_item(lx, 5, "jacket_evac");
+        m->spawn_item(lx, 5, "emer_blanket");
+        if (one_in(3)) {
+            int lxa = rng(5 , 8);
+            m->spawn_item(lxa, 5, "jacket_evac");
+            m->spawn_item(lxa, 5, "emer_blanket");
+            if (one_in(2)) {
+                m->spawn_item(lxa, 5, "mask_gas"); // See! The gas mask is real!
+            }
+        }
         if(ACTIVE_WORLD_OPTIONS["BLACK_ROAD"] || g->scen->has_flag("SUR_START")) {
             //place zombies outside
             m->place_spawns("GROUP_ZOMBIE", ACTIVE_WORLD_OPTIONS["SPAWN_DENSITY"], 0, 0, SEEX * 2 - 1, 3, 0.4f);

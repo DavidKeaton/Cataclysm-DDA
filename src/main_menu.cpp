@@ -1,4 +1,5 @@
 #include "game.h"
+#include "gamemode.h"
 #include "debug.h"
 #include "input.h"
 #include "mapbuffer.h"
@@ -184,6 +185,7 @@ bool game::opening_screen()
     world_generator->get_all_worlds();
 
     WINDOW *w_background = newwin(TERMY, TERMX, 0, 0);
+    WINDOW_PTR w_backgroundptr( w_background );
     werase(w_background);
     wrefresh(w_background);
 
@@ -201,9 +203,12 @@ bool game::opening_screen()
     const int y0 = (TERMY - total_h) / 2;
 
     WINDOW *w_open = newwin(total_h, total_w, y0, x0);
+    WINDOW_PTR w_openptr( w_open );
 
     const int iMenuOffsetX = 2;
     int iMenuOffsetY = total_h - 3;
+    // note: if iMenuOffset is changed,
+    // please update MOTD and credits to indicate how long they can be.
 
     std::vector<std::string> vSubItems;
     vSubItems.push_back(pgettext("Main Menu|New Game", "<C>ustom Character"));
@@ -263,15 +268,19 @@ bool game::opening_screen()
 
         if (layer == 1) {
             if (sel1 == 0) { // Print the MOTD.
-                for (size_t i = 0; i < mmenu_motd.size() && i < 16; i++) {
-                    mvwprintz(w_open, i + 6, 8 + extra_w / 2, c_ltred, mmenu_motd[i].c_str());
+                const int motdy = (iMenuOffsetY - mmenu_motd.size()) * 2/3;
+                const int motdx = 8 + extra_w / 2;
+                for (size_t i = 0; i < mmenu_motd.size(); i++) {
+                    mvwprintz(w_open, motdy + i, motdx, c_ltred, mmenu_motd[i].c_str());
                 }
 
                 wrefresh(w_open);
                 refresh();
             } else if (sel1 == 7) { // Print the Credits.
-                for (size_t i = 0; i < mmenu_credits.size() && i < 16; i++) {
-                    mvwprintz(w_open, i + 6, 8 + extra_w / 2, c_ltred, mmenu_credits[i].c_str());
+                const int credy = (iMenuOffsetY - mmenu_credits.size()) * 2/3;
+                const int credx = 8 + extra_w / 2;
+                for (size_t i = 0; i < mmenu_credits.size(); i++) {
+                    mvwprintz(w_open, credy + i, credx, c_ltred, mmenu_credits[i].c_str());
                 }
 
                 wrefresh(w_open);
@@ -336,8 +345,6 @@ bool game::opening_screen()
                     display_help();
                 } else if (sel1 == 8) {
                     uquit = QUIT_MENU;
-                    delwin(w_open);
-                    delwin(w_background);
                     return false;
                 } else {
                     sel2 = 0;
@@ -802,8 +809,8 @@ bool game::opening_screen()
             }
         }
     }
-    delwin(w_open);
-    delwin(w_background);
+    w_openptr.reset();
+    w_backgroundptr.reset();
     if (start == false) {
         uquit = QUIT_MENU;
     } else {

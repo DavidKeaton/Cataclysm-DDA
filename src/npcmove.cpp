@@ -6,6 +6,7 @@
 #include "debug.h"
 #include "overmapbuffer.h"
 #include "messages.h"
+#include "item_factory.h"
 
 #define dbg(x) DebugLog((DebugLevel)(x),D_NPC) << __FILE__ << ":" << __LINE__ << ": "
 #define TARGET_PLAYER -2
@@ -43,6 +44,42 @@ struct ratio_index {
     ratio_index(double R, int I) : ratio (R), index (I) {};
 };
 
+bool npc::is_dangerous_field( const field_entry &fld ) const
+{
+    switch( fld.getFieldType() ) {
+        case fd_smoke:
+            return get_env_resist( bp_mouth ) < 7;
+        case fd_tear_gas:
+        case fd_toxic_gas:
+        case fd_gas_vent:
+        case fd_relax_gas:
+            return get_env_resist( bp_mouth ) < 15;
+        case fd_fungal_haze:
+            if( has_trait( "M_IMMUNE" ) ) {
+                return false;
+            }
+            return get_env_resist( bp_mouth ) < 15 || get_env_resist( bp_eyes ) < 15;
+        default:
+            return fld.is_dangerous();
+    }
+}
+
+bool npc::sees_dangerous_field( point p ) const
+{
+    auto &fields = g->m.field_at( p.x, p.y );
+    for( auto & fld : fields ) {
+        if( is_dangerous_field( fld.second ) ) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool npc::could_move_onto( point p ) const
+{
+    return g->m.move_cost( p.x, p.y ) != 0 && !sees_dangerous_field( p );
+}
+
 // class npc functions!
 
 void npc::move()
@@ -64,6 +101,20 @@ void npc::move()
         }
     }
 
+    // This bypasses the logic to determine the npc action, but this all needs to be rewritten anyway.
+    if( sees_dangerous_field( pos() ) ) {
+        auto targets = closest_points_first( 1, pos() );
+        targets.erase( targets.begin() ); // current location
+        auto filter = [this](const point &p) {
+            return !could_move_onto( p );
+        };
+        targets.erase( std::remove_if( targets.begin(), targets.end(), filter ), targets.end() );
+        if( !targets.empty() ) {
+            const auto target = targets[rng( 0, targets.size() - 1 )];
+            move_to( target.x, target.y );
+            return;
+        }
+    }
 
     if (is_enemy()) {
         int pl_danger = player_danger( &(g->u) );
@@ -185,7 +236,7 @@ void npc::execute_action(npc_action action, int target)
         if (!weapon.reload(*this, ammo_index)) {
             debugmsg("NPC reload failed.");
         }
-        recoil = 6;
+        recoil = MIN_RECOIL;
         if (g->u_see(posx, posy)) {
             add_msg(_("%s reloads their %s."), name.c_str(),
                     weapon.tname().c_str());
@@ -289,11 +340,11 @@ void npc::execute_action(npc_action action, int target)
         break;
 
     case npc_shoot:
-        g->fire(*this, tarx, tary, line, false);
+        fire_gun( tarx, tary, false);
         break;
 
     case npc_shoot_burst:
-        g->fire(*this, tarx, tary, line, true);
+        fire_gun( tarx, tary, true);
         break;
 
     case npc_alt_attack:
@@ -739,7 +790,7 @@ bool npc::alt_attack_available()
 {
     for (int i = 0; i < NUM_ALT_ATTACK_ITEMS; i++) {
         if ((!is_following() || combat_rules.use_grenades ||
-             !(itypes[ALT_ATTACK_ITEMS[i]]->item_tags.count("GRENADE"))) &&
+             !(item_controller->find_template( ALT_ATTACK_ITEMS[i] )->item_tags.count("GRENADE"))) &&
             has_amount(ALT_ATTACK_ITEMS[i], 1)) {
             return true;
         }
@@ -812,34 +863,10 @@ int npc::confident_range(int position)
     double deviation = 0;
     int max = 0;
     if (position == -1) {
-        it_gun *firing = dynamic_cast<it_gun *>(weapon.type);
-        // We want at least 50% confidence that missed_by will be < .5.
-        // missed_by = .00325 * deviation * range <= .5; deviation * range <= 156
-        // (range <= 156 / deviation) is okay, so confident range is (156 / deviation)
-        // Here we're using max values for deviation followed by *.5, for around-50% estimate.
-        // See game::fire (ranged.cpp) for where these computations come from
-
-        if (skillLevel(firing->skill_used) < 8) {
-            deviation += 3 * (8 - skillLevel(firing->skill_used));
-        }
-        if (skillLevel("gun") < 9) {
-            deviation += 9 - skillLevel("gun");
-        }
-
-        deviation += ranged_dex_mod();
-        deviation += ranged_per_mod();
-
-        deviation += encumb(bp_arm_l) + encumb(bp_arm_r) + 4 * encumb(bp_eyes);
-
-        if (weapon.curammo == NULL) { // This shouldn't happen, but it does sometimes
-            debugmsg("%s has NULL curammo!", name.c_str());    // TODO: investigate this bug
-        } else {
-            deviation += weapon.curammo->dispersion;
-            max = weapon.range();
-        }
-        deviation += firing->dispersion;
-        deviation += recoil;
-
+        deviation = get_weapon_dispersion( &weapon, true );
+        deviation += recoil + driving_recoil;
+        // Convert from MoA back to quarter-degrees.
+        deviation /= 15;
     } else { // We aren't firing a gun, we're throwing something!
 
         item *thrown = &i_at(position);
@@ -1000,9 +1027,32 @@ void npc::move_to(int x, int y)
         moves -= 100;
         return;
     }
+    if( sees_dangerous_field( point( x, y ) ) ) {
+        // move to a neighbor field instead, if possible.
+        // Maybe this code already exists somewhere?
+        if( x != posx && y != posy ) {
+            if( could_move_onto( point( x, posy ) ) ) {
+                y = posy;
+            } else if( could_move_onto( point( posx, y ) ) ) {
+                x = posx;
+            }
+        } else if( x != posx && y == posy ) {
+            if( could_move_onto( point( x, posy + 1 ) ) ) {
+                y = posy + 1;
+            } else if( could_move_onto( point( x, posy - 1 ) ) ) {
+                y = posy - 1;
+            }
+        } else if( y != posy && x == posx ) {
+            if( could_move_onto( point( posx + 1, y ) ) ) {
+                x = posx + 1;
+            } else if( could_move_onto( point( posx - 1, y ) ) ) {
+                x = posx - 1;
+            }
+        }
+    }
     if (recoil > 0) { // Start by dropping recoil a little
         if (int(str_cur / 2) + skillLevel("gun") >= (int)recoil) {
-            recoil = 0;
+            recoil = MIN_RECOIL;
         } else {
             recoil -= int(str_cur / 2) + skillLevel("gun");
             recoil = int(recoil / 2);
@@ -1067,6 +1117,7 @@ void npc::move_to(int x, int y)
             if( veh != nullptr && veh->part_with_feature( part, VPFLAG_BOARDABLE ) >= 0 ) {
                 g->m.board_vehicle( posx, posy, this );
             }
+            g->m.creature_in_field( *this );
         } else if (g->m.open_door(x, y, (g->m.ter(posx, posy) == t_floor))) {
             moves -= 100;
         } else if (g->m.is_bashable(x, y) && g->m.bash_rating(str_cur + weapon.type->melee_dam, x, y) > 0) {
@@ -1251,7 +1302,7 @@ void npc::move_pause()
     moves = 0;
     if (recoil > 0) {
         if (str_cur + 2 * skillLevel("gun") >= (int)recoil) {
-            recoil = 0;
+            recoil = MIN_RECOIL;
         } else {
             recoil -= str_cur + 2 * skillLevel("gun");
             recoil = int(recoil / 2);
@@ -1582,7 +1633,7 @@ void npc::alt_attack(int target)
      */
     for (int i = 0; i < NUM_ALT_ATTACK_ITEMS; i++) {
         if ((!is_following() || combat_rules.use_grenades ||
-             !(itypes[ALT_ATTACK_ITEMS[i]]->item_tags.count("GRENADE"))) &&
+             !(item_controller->find_template( ALT_ATTACK_ITEMS[i] )->item_tags.count("GRENADE"))) &&
             has_amount(ALT_ATTACK_ITEMS[i], 1)) {
             which = ALT_ATTACK_ITEMS[i];
         }
@@ -1732,10 +1783,10 @@ void npc::activate_item(int position)
     item *it = &i_at(position);
     if (it->is_tool()) {
         it_tool *tool = dynamic_cast<it_tool *>(it->type);
-        tool->invoke(this, it, false);
+        tool->invoke(this, it, false, pos());
     } else if (it->is_food()) {
         it_comest *comest = dynamic_cast<it_comest *>(it->type);
-        comest->invoke(this, it, false);
+        comest->invoke(this, it, false, pos());
     }
 }
 
