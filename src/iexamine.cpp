@@ -1,4 +1,3 @@
-#include "item_factory.h"
 #include "helper.h"
 #include "game.h"
 #include "mapdata.h"
@@ -520,7 +519,7 @@ void iexamine::cardreader(player *p, map *m, int examx, int examy)
                 }
             }
         } else {
-            add_msg(m_info, _("Looks like you need a %s."), item_controller->nname( card_type ).c_str());
+            add_msg(m_info, _("Looks like you need a %s."), item::nname( card_type ).c_str());
         }
     }
 }
@@ -1000,7 +999,7 @@ void iexamine::flower_poppy(player *p, map *m, int examx, int examy)
         p->moves -= 150; // You take your time...
         add_msg(_("You slowly suck up the nectar."));
         p->hunger -= 25;
-        p->add_disease("pkill2", 70);
+        p->add_effect("pkill2", 70);
         p->fatigue += 20;
         // Please drink poppy nectar responsibly.
         if (one_in(20)) {
@@ -1129,7 +1128,7 @@ void iexamine::flower_dandelion(player *p, map *m, int examx, int examy)
 void iexamine::flower_marloss(player *p, map *m, int examx, int examy)
 {
     if (calendar::turn.get_season() == WINTER) {
-        add_msg(m_info, _("This flower is still alive, desipte the harsh conditions..."));
+        add_msg(m_info, _("This flower is still alive, despite the harsh conditions..."));
     }
     if ( ((p->has_trait("PROBOSCIS")) || (p->has_trait("BEAK_HUM"))) &&
          ((p->hunger) > 0) ) {
@@ -1141,7 +1140,7 @@ void iexamine::flower_marloss(player *p, map *m, int examx, int examy)
             p->moves -= 50; // Takes 30 seconds
             add_msg(m_bad, _("This flower tastes very wrong..."));
             // If you can drink flowers, you're post-thresh and the Mycus does not want you.
-            p->add_disease("teleglow", 100);
+            p->add_effect("teleglow", 100);
         }
     }
     if(!query_yn(_("Pick %s?"), m->furnname(examx, examy).c_str())) {
@@ -1304,7 +1303,7 @@ void iexamine::aggie_plant(player *p, map *m, int examx, int examy)
                 plantCount = 12;
             }
             m->spawn_item(examx, examy, seedType.substr(5), plantCount, 0, calendar::turn);
-            if(item_controller->find_template(seedType)->count_by_charges()) {
+            if( item::count_by_charges( seedType ) ) {
                 m->spawn_item(examx, examy, seedType, 1, rng(plantCount / 4, plantCount / 2));
             } else {
                 m->spawn_item(examx, examy, seedType, rng(plantCount / 4, plantCount / 2));
@@ -1734,7 +1733,7 @@ void iexamine::harvest_tree_shrub(player *p, map *m, int examx, int examy)
     }
     //if the fruit is not ripe yet
     if (calendar::turn.get_season() != m->get_ter_harvest_season(examx, examy)) {
-        std::string fruit = item_controller->find_template(m->get_ter_harvestable(examx, examy))->nname(10);
+        std::string fruit = item::nname(m->get_ter_harvestable(examx, examy), 10);
         fruit[0] = toupper(fruit[0]);
         add_msg(m_info, _("%s ripen in %s."), fruit.c_str(), season_name[m->get_ter_harvest_season(examx, examy)].c_str());
         return;
@@ -1834,15 +1833,13 @@ int sum_up_item_weight_by_material(std::vector<item> &items, const std::string &
 
 void add_recyle_menu_entry(uimenu &menu, int w, char hk, const std::string &type)
 {
-    const itype *itt = item_controller->find_template(type);
-    const int amount = (int) (w / itt->weight);
-    menu.entries.push_back(
-        uimenu_entry(
-            menu.entries.size() + 1, // value return by uimenu for this entry
-            true, // enabled
-            hk, // hotkey
-            string_format(_("about %d %s"), amount, itt->nname(amount).c_str())
-        )
+    const auto itt = item( type, 0 );
+    const int amount = w / itt.weight();
+    menu.addentry(
+        menu.entries.size() + 1, // value return by uimenu for this entry
+        true, // enabled
+        hk, // hotkey
+        string_format(_("about %d %s"), amount, itt.tname( amount ).c_str())
     );
 }
 
@@ -1896,10 +1893,10 @@ void iexamine::recycler(player *p, map *m, int examx, int examy)
 
     g->sound(examx, examy, 80, _("Ka-klunk!"));
 
-    int lump_weight = item_controller->find_template("steel_lump")->weight;
-    int sheet_weight = item_controller->find_template("sheet_metal")->weight;
-    int chunk_weight = item_controller->find_template("steel_chunk")->weight;
-    int scrap_weight = item_controller->find_template("scrap")->weight;
+    int lump_weight = item( "steel_lump", 0 ).weight();
+    int sheet_weight = item( "sheet_metal", 0 ).weight();
+    int chunk_weight = item( "steel_chunk", 0 ).weight();
+    int scrap_weight = item( "scrap", 0 ).weight();
 
     if (steel_weight < scrap_weight) {
         add_msg(_("The recycler chews up all the items in its hopper."));
@@ -2051,7 +2048,7 @@ itype *furn_t::crafting_pseudo_item_type() const
     if (crafting_pseudo_item.empty()) {
         return NULL;
     }
-    return item_controller->find_template(crafting_pseudo_item);
+    return item::find_type( crafting_pseudo_item );
 }
 
 itype *furn_t::crafting_ammo_item_type() const
@@ -2059,7 +2056,7 @@ itype *furn_t::crafting_ammo_item_type() const
     const it_tool *toolt = dynamic_cast<const it_tool *>(crafting_pseudo_item_type());
     if (toolt != NULL && toolt->ammo != "NULL") {
         const std::string ammoid = default_ammo(toolt->ammo);
-        return item_controller->find_template(ammoid);
+        return item::find_type( ammoid );
     }
     return NULL;
 }

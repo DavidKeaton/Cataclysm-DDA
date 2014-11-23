@@ -102,7 +102,10 @@ double Creature::projectile_attack(const projectile &proj, int sourcex, int sour
     // if this is a vehicle mounted turret, which vehicle is it mounted on?
     const vehicle *in_veh = is_fake() ? g->m.veh_at(xpos(), ypos()) : NULL;
 
+    //Start this now in case we hit something early
+    std::vector<point> blood_traj = std::vector<point>();
     for (size_t i = 0; i < trajectory.size() && (dam > 0 || (proj.proj_effects.count("FLAME"))); i++) {
+        blood_traj.push_back(trajectory[i]);
         px = tx;
         py = ty;
         (void) px;
@@ -140,9 +143,6 @@ double Creature::projectile_attack(const projectile &proj, int sourcex, int sour
             dealt_damage_instance dealt_dam;
             bool passed_through = critter->deal_projectile_attack(this, cur_missed_by, proj, dealt_dam) == 1;
             if (dealt_dam.total_damage() > 0) {
-                std::vector<point> blood_traj = std::vector<point>();
-                blood_traj.insert(blood_traj.begin(), point(xpos(), ypos()));
-                blood_traj.insert(blood_traj.end(), point(critter->xpos(), critter->ypos()));
                 splatter( blood_traj, dam, critter );
             }
             if (!passed_through) {
@@ -263,7 +263,6 @@ bool player::handle_gun_damage( it_gun *firing, std::set<std::string> *curammo_e
 
 void player::fire_gun(int tarx, int tary, bool burst)
 {
-    item ammotmp;
     item *gunmod = weapon.active_gunmod();
     it_ammo *curammo = NULL;
     item *used_weapon = NULL;
@@ -315,9 +314,6 @@ void player::fire_gun(int tarx, int tary, bool burst)
         curammo = weapon.curammo;
         used_weapon = &weapon;
     }
-
-    ammotmp = item(curammo->id, 0);
-    ammotmp.charges = 1;
 
     if (!used_weapon->is_gun() && !used_weapon->is_gunmod()) {
         debugmsg("%s tried to fire a non-gun (%s).", name.c_str(),
@@ -869,8 +865,12 @@ static void draw_targeting_window( WINDOW *w_target, item *relevant, player &p, 
         --text_y;
     }
     if( relevant ) {
-        // Reserve lines for aiming and firing instructions.
-        text_y -= 6;
+        if( mode == TARGET_MODE_FIRE ) {
+            // Reserve lines for aiming and firing instructions.
+            text_y -= 6;
+        } else {
+            text_y -= 2;
+        }
     }
     mvwprintz(w_target, text_y++, 1, c_white,
               _("Move cursor to target with directional keys"));
@@ -879,14 +879,16 @@ static void draw_targeting_window( WINDOW *w_target, item *relevant, player &p, 
                   _("'<' '>' Cycle targets; 'f' or Enter to fire"));
         mvwprintz(w_target, text_y++, 1, c_white,
                   _("'0' target self; '*' toggle snap-to-target"));
-        mvwprintz(w_target, text_y++, 1, c_white,
-                  _("'.' to steady your aim."));
-        mvwprintz(w_target, text_y++, 1, c_white,
-                  _("'a' to aim and fire."));
-        mvwprintz(w_target, text_y++, 1, c_white,
-                  _("'c' to take careful aim and fire."));
-        mvwprintz(w_target, text_y++, 1, c_white,
-                  _("'p' to take precise aim and fire."));
+        if( mode == TARGET_MODE_FIRE ) {
+            mvwprintz(w_target, text_y++, 1, c_white,
+                      _("'.' to steady your aim."));
+            mvwprintz(w_target, text_y++, 1, c_white,
+                      _("'a' to aim and fire."));
+            mvwprintz(w_target, text_y++, 1, c_white,
+                      _("'c' to take careful aim and fire."));
+            mvwprintz(w_target, text_y++, 1, c_white,
+                      _("'p' to take precise aim and fire."));
+        }
     }
 
     if( is_mouse_enabled() ) {
@@ -1083,10 +1085,12 @@ std::vector<point> game::target(int &x, int &y, int lowx, int lowy, int hix,
         ctxt.register_action("FIRE");
         ctxt.register_action("NEXT_TARGET");
         ctxt.register_action("PREV_TARGET");
-        ctxt.register_action("AIM");
-        ctxt.register_action("AIMED_SHOT");
-        ctxt.register_action("CAREFUL_SHOT");
-        ctxt.register_action("PRECISE_SHOT");
+        if( mode == TARGET_MODE_FIRE ) {
+            ctxt.register_action("AIM");
+            ctxt.register_action("AIMED_SHOT");
+            ctxt.register_action("CAREFUL_SHOT");
+            ctxt.register_action("PRECISE_SHOT");
+        }
         ctxt.register_action("CENTER");
         ctxt.register_action("TOGGLE_SNAP_TO_TARGET");
         ctxt.register_action("HELP_KEYBINDINGS");
@@ -1479,5 +1483,3 @@ void splatter( std::vector<point> trajectory, int dam, Creature *target )
         }
     }
 }
-
-

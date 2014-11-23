@@ -31,7 +31,7 @@ item::item()
 item::item(const std::string new_type, unsigned int turn, bool rand, int handed)
 {
     init();
-    type = item_controller->find_template( new_type );
+    type = find_type( new_type );
     bday = turn;
     corpse = type->id == "corpse" ? GetMType( "mon_null" ) : nullptr;
     name = type->nname(1);
@@ -65,7 +65,7 @@ item::item(const std::string new_type, unsigned int turn, bool rand, int handed)
                 charges = tool->def_charges;
             }
             if (tool->ammo != "NULL") {
-                curammo = dynamic_cast<it_ammo*>(item_controller->find_template(default_ammo(tool->ammo)));
+                curammo = dynamic_cast<it_ammo*>(find_type(default_ammo(tool->ammo)));
             }
         }
     } else if (type->is_book()) {
@@ -136,7 +136,7 @@ void item::make_corpse(const std::string new_type, mtype* mt, unsigned int turn)
     init();
     active = mt->has_flag(MF_REVIVES)? true : false;
     if (active && isReviveSpecial) item_tags.insert("REVIVE_SPECIAL");
-    type = item_controller->find_template( new_type );
+    type = find_type( new_type );
     corpse = mt;
     bday = turn;
 }
@@ -194,7 +194,7 @@ void item::init() {
 void item::make( const std::string new_type )
 {
     const bool was_armor = is_armor();
-    type = item_controller->find_template( new_type );
+    type = find_type( new_type );
     contents.clear();
     if( was_armor != is_armor() ) {
         // If changed from armor to non-armor (or reverse), have to recalculate
@@ -831,7 +831,7 @@ std::string item::info(bool showtext, std::vector<iteminfo> *dump, bool debug)
                     if(g->u.knows_recipe(iter->first)) {
                         recipes += "<color_ltgray>";
                     }
-                    recipes += item_controller->find_template( iter->first->result )->nname(1);
+                    recipes += nname( iter->first->result, 1 );
                     if(g->u.knows_recipe(iter->first)) {
                         recipes += "</color>";
                     }
@@ -1206,7 +1206,7 @@ std::string item::info(bool showtext, std::vector<iteminfo> *dump, bool debug)
         recipe_list &rec = recipes_by_component[tid];
         if (!rec.empty()) {
             temp1.str("");
-            inventory inv = g->u.crafting_inventory();
+            const inventory &inv = g->u.crafting_inventory();
             // only want known recipes
             recipe_list known_recipes;
             for (recipe *r : rec) {
@@ -1230,7 +1230,7 @@ std::string item::info(bool showtext, std::vector<iteminfo> *dump, bool debug)
                     if (!can_make) {
                         temp1 << "<color_dkgray>";
                     }
-                    temp1 << item_name(r->result);
+                    temp1 << item::nname(r->result);
                     if (!can_make) {
                         temp1 << "</color>";
                     }
@@ -1655,9 +1655,9 @@ int item::weight() const
         ret += curammo->weight * charges;
     } else if (type->is_tool() && charges >= 1 && ammo_type() != "NULL") {
         if( ammo_type() == "plutonium" ) {
-            ret += item_controller->find_template(default_ammo(this->ammo_type()))->weight * charges / 500;
+            ret += find_type(default_ammo(this->ammo_type()))->weight * charges / 500;
         } else {
-            ret += item_controller->find_template(default_ammo(this->ammo_type()))->weight * charges;
+            ret += find_type(default_ammo(this->ammo_type()))->weight * charges;
         }
     }
     for (size_t i = 0; i < contents.size(); i++) {
@@ -2037,14 +2037,7 @@ bool item::goes_bad() const
 
 bool item::count_by_charges() const
 {
-    if( is_ammo() ) {
-        return true;
-    }
-    if( is_food() ) {
-        it_comest* food = dynamic_cast<it_comest*>(type);
-        return food->charges > 1;
-    }
-    return false;
+    return type->count_by_charges();
 }
 
 long item::max_charges() const
@@ -2407,11 +2400,6 @@ bool item::is_food(player const*u) const
 bool item::is_food_container(player const*u) const
 {
     return (contents.size() >= 1 && contents[0].is_food(u));
-}
-
-bool is_edible(item i, player const*u)
-{
-    return (i.is_food(u) || i.is_food_container(u));
 }
 
 bool item::is_food() const
@@ -4081,17 +4069,17 @@ bool item::process_litcig( player *carrier, point pos )
             } else if( carrier->has_trait( "LIGHTWEIGHT" ) ) {
                 duration = 20;
             }
-            carrier->add_msg_if_player( m_info, _( "You take a puff of your %s." ), tname().c_str() );
+            carrier->add_msg_if_player( m_neutral, _( "You take a puff of your %s." ), tname().c_str() );
             if( has_flag( "TOBACCO" ) ) {
-                carrier->add_disease( "cig", duration );
+                carrier->add_effect( "cig", duration );
             } else {
-                carrier->add_disease( "weed_high", duration / 2 );
+                carrier->add_effect( "weed_high", duration / 2 );
             }
             g->m.add_field( pos.x + rng( -1, 1 ), pos.y + rng( -1, 1 ), smoke_type, 2 );
             carrier->moves -= 15;
         }
 
-        if( ( carrier->has_disease( "shakes" ) && one_in( 10 ) ) ||
+        if( ( carrier->has_effect( "shakes" ) && one_in( 10 ) ) ||
             ( carrier->has_trait( "JITTERY" ) && one_in( 200 ) ) ) {
             carrier->add_msg_if_player( m_bad, _( "Your shaking hand causes you to drop your %s." ),
                                         tname().c_str() );
@@ -4116,7 +4104,7 @@ bool item::process_litcig( player *carrier, point pos )
     // cig dies out
     if( item_counter == 0 ) {
         if( carrier != nullptr ) {
-            carrier->add_msg_if_player( m_info, _( "You finish your %s." ), tname().c_str() );
+            carrier->add_msg_if_player( m_neutral, _( "You finish your %s." ), tname().c_str() );
         }
         if( type->id == "cig_lit" ) {
             make( "cig_butt" );
@@ -4125,7 +4113,7 @@ bool item::process_litcig( player *carrier, point pos )
         } else { // joint
             make( "joint_roach" );
             if( carrier != nullptr ) {
-                carrier->add_disease( "weed_high", 10 ); // one last puff
+                carrier->add_effect( "weed_high", 10 ); // one last puff
                 g->m.add_field( pos.x + rng( -1, 1 ), pos.y + rng( -1, 1 ), fd_weedsmoke, 2 );
                 weed_msg( carrier );
             }
@@ -4294,7 +4282,7 @@ bool item::process_charger_gun( player *carrier, point pos )
         }
     }
     if( poison < 0 ) {
-        carrier->add_msg_if_player( m_info, _( "Your %s spins down." ), tname().c_str() );
+        carrier->add_msg_if_player( m_neutral, _( "Your %s spins down." ), tname().c_str() );
         charges--;
         poison = charges - 1;
     }
@@ -4419,4 +4407,57 @@ bool item::has_effect_when_carried( art_effect_passive effect ) const
         }
     }
     return false;
+}
+
+std::string item::nname( const itype_id &id, unsigned int quantity )
+{
+    const auto t = find_type( id );
+    return t->nname( quantity );
+}
+
+bool item::count_by_charges( const itype_id &id )
+{
+    const auto t = find_type( id );
+    return t->count_by_charges();
+}
+
+bool item::type_is_defined( const itype_id &id )
+{
+    return item_controller->has_template( id );
+}
+
+itype *item::find_type( const itype_id &type )
+{
+    return item_controller->find_template( type );
+}
+
+item_category::item_category() : id(), name(), sort_rank( 0 )
+{
+}
+
+item_category::item_category( const std::string &id_, const std::string &name_,
+                              int sort_rank_ )
+    : id( id_ ), name( name_ ), sort_rank( sort_rank_ )
+{
+}
+
+bool item_category::operator<( const item_category &rhs ) const
+{
+    if( sort_rank != rhs.sort_rank ) {
+        return sort_rank < rhs.sort_rank;
+    }
+    if( name != rhs.name ) {
+        return name < rhs.name;
+    }
+    return id < rhs.id;
+}
+
+bool item_category::operator==( const item_category &rhs ) const
+{
+    return sort_rank == rhs.sort_rank && name == rhs.name && id == rhs.id;
+}
+
+bool item_category::operator!=( const item_category &rhs ) const
+{
+    return !( *this == rhs );
 }
