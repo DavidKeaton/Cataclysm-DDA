@@ -450,7 +450,7 @@ Never use `yellow` and `red`, those colors are reserved for sounds and infrared 
 "color": "dark_gray",   // ASCII character colour
 "name": "M4A1",         // In-game name displayed
 "name_plural": "M4A1",  // In-game pluralized name
-"description": "A popular carbine, long used by the US military.  Though accurate, small, and lightweight, it is infamous for its fragility, particularly in less-than- ideal terrain.",
+"description": "A popular carbine, long used by the US military.  Though accurate, small, and lightweight, it is infamous for its fragility, particularly in less-than- ideal terrain.", // In-game description
 "price": 240000,        // Used when bartering with NPCs
 "material": ["steel", "plastic"],   // Material types.  See materials.json for possible options
 "flags": "MODE_BURST",  // Indicates special effects
