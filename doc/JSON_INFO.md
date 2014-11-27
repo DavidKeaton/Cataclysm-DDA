@@ -444,36 +444,51 @@ Never use `yellow` and `red`, those colors are reserved for sounds and infrared 
 ```
 ###GUN
 ```C++
-"id": "nailgun",      // Unique ID. Must be one continuous word, use underscores if necessary
-"type": "GUN",        // Defines this as a GUN
-"symbol": "(",        // ASCII character used in-game
-"color": "light_blue", // ASCII character colour
-"name": "nail gun",   // In-game name displayed
-"description": "A tool used to drive nails into wood or other material. It could also be used as a ad-hoc weapon, or to practice your handgun skill up to level 1.", // In-game description
-"price": 100,         // Used when bartering with NPCs
-"material": "iron",   // Material types.  See materials.json for possible options
-"flags": "MODE_BURST", // Indicates special effects
-"skill": "pistol",    // Skill used for firing
-"ammo": "nail",       // Ammo type accepted for reloading
-"weight": 2404,       // Weight, measured in grams
-"volume": 4,          // Volume, measured in 1/4 liters
-"bashing": 12,        // Bashing damage caused by using it as a melee weapon
-"cutting": 0,         // Cutting damage caused by using it as a melee weapon
-"to_hit": 1,          // To-hit bonus if using it as a melee weapon
-"ranged_damage": 0,   // Ranged damage when fired
-"range": 0,           // Range when fired
-"dispersion": 32,     // Inaccuracy of gun, measured in quarter-degrees
+"id": "m4a1",           // Unique ID. Must be one continuous word, use underscores if necessary
+"type": "GUN",          // Defines this as a GUN
+"symbol": "(",          // ASCII character used in-game
+"color": "dark_gray",   // ASCII character colour
+"name": "M4A1",         // In-game name displayed
+"name_plural": "M4A1",  // In-game pluralized name
+"description": "A popular carbine, long used by the US military.  Though accurate, small, and lightweight, it is infamous for its fragility, particularly in less-than- ideal terrain.",
+"price": 240000,        // Used when bartering with NPCs
+"material": ["steel", "plastic"],   // Material types.  See materials.json for possible options
+"flags": "MODE_BURST",  // Indicates special effects
+"skill": "rifle",       // Skill used for firing
+"ammo": "223",          // Ammo type accepted for reloading
+"weight": 2880,         // Weight, measured in grams
+"volume": 9,            // Volume, measured in 1/4 liters
+"bashing": 12,          // Bashing damage caused by using it as a melee weapon
+"cutting": 0,           // Cutting damage caused by using it as a melee weapon
+"to_hit": -1,           // To-hit bonus if using it as a melee weapon
+"ranged_damage": 4,     // Ranged damage when fired
+"range": 0,             // Range when fired
+"dispersion": 10,       // Inaccuracy of gun, measured in quarter-degrees
 // When sight_dispersion and aim_speed are present in a gun mod, the aiming system picks the "best"
 // sight to use for each aim action, which is the fastest sight with a dispersion under the current
 // aim threshold.
-"sight_dispersion": 10, // Inaccuracy of gun derived from the sight mechanism, also in quarter-degrees
-"aim_speed": 3,       // A measure of how quickly the player can aim, in moves per point of dispersion.
-"recoil": 0,          // Recoil caused when firing, in quarter-degrees of dispersion.
-"durability": 8,      // Resistance to damage/rusting, also determines misfire chance
-"burst": 5,           // Number of shots fired in burst mode
-"clip_size": 100,     // Maximum amount of ammo that can be loaded
-"ups_charges": 0,     // Additionally to the normal ammo (if any), a gun can require some charges from an UPS.
-"reload": 450         // Amount of time to reload, 100 = 6 seconds = 1 "turn"
+"sight_dispersion": 60, // Inaccuracy of gun derived from the sight mechanism, also in quarter-degrees
+"aim_speed" : 6,        // A measure of how quickly the player can aim, in moves per point of dispersion.
+"recoil": 30,           // Recoil caused when firing, in quarter-degrees of dispersion.
+"durability": 6,        // Resistance to damage/rusting, also determines misfire chance
+"burst": 10,            // Number of shots fired in burst mode
+"clip_size": 30,        // Maximum amount of ammo that can be loaded
+"ups_charges": 0,       // Additionally to the normal ammo (if any), a gun can require some charges from an UPS.
+"reload": 475,          // Amount of time to reload, 100 = 6 seconds = 1 "turn"
+"valid_mod_locations": [    // Locations on the weapon that can have gun mods placed (optional)
+  [ "accessories", 4 ],
+  [ "barrel", 1 ],
+  [ "bore", 1 ],
+  [ "conversion", 1 ],
+  [ "grip", 1 ],
+  [ "magazine", 2 ],
+  [ "mechanism", 4 ],
+  [ "muzzle", 1 ],
+  [ "rail", 1 ],
+  [ "sights", 1 ],
+  [ "stock", 1 ],
+  [ "underbarrel", 1 ]
+]
 ```
 ###TOOLS
 ```C++
