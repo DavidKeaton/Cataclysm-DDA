@@ -89,7 +89,7 @@ void DynamicDataLoader::load_object(JsonObject &jo)
     (*it->second)(jo);
 }
 
-void load_ingored_type(JsonObject &jo)
+void load_ignored_type(JsonObject &jo)
 {
     // This does nothing!
     // This function is used for types that are to be ignored
@@ -192,11 +192,11 @@ void DynamicDataLoader::initialize()
             &Item_factory::load_item_whitelist);
 
     // ...unimplemented?
-    type_function_map["INSTRUMENT"] = new StaticFunctionAccessor(&load_ingored_type);
+    type_function_map["INSTRUMENT"] = new StaticFunctionAccessor(&load_ignored_type);
     // loaded earlier.
-    type_function_map["colordef"] = new StaticFunctionAccessor(&load_ingored_type);
+    type_function_map["colordef"] = new StaticFunctionAccessor(&load_ignored_type);
     // mod information, ignored, handled by the mod manager
-    type_function_map["MOD_INFO"] = new StaticFunctionAccessor(&load_ingored_type);
+    type_function_map["MOD_INFO"] = new StaticFunctionAccessor(&load_ignored_type);
     type_function_map["BULLET_PULLING"] = new StaticFunctionAccessor(&iuse::load_bullet_pulling);
 
     type_function_map["faction"] = new StaticFunctionAccessor(
