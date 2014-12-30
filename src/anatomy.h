@@ -6,6 +6,8 @@
 #include <map>
 #include <string>
 
+#include <unordered_set>
+
 // TODO: Move all this stuff to be json read, that would be uber nice.
 
 /*-----------------------------------------------------------------------------
@@ -113,10 +115,21 @@ class Anatomy
         ~Anatomy ();
 
         /* ====================  ACCESSORS     ======================================= */
-        bool get_hp() const;
+        // return overall hp
+        int get_hp() const;
+        // return hp of part
+        int get_hp_at(/* bodypart bp */) const;
+        // TODO: make -v- NOT void
+        // get anatomy entirely as iterator/-able
+        void get_parts() const;
+        // get anatomy on major body part
+        void get_parts_at(/* bodypart bp */) const;
 
         /* ====================  MUTATORS      ======================================= */
-        void damage(int);
+        // damage overall health by n
+        void damage(int n);
+        // damage anatomical_group by [n]
+        void damage(anatomical_group ag, int n);
 
         /* ====================  OPERATORS     ======================================= */
 
@@ -125,11 +138,23 @@ class Anatomy
 
     private:
         /* ====================  DATA MEMBERS  ======================================= */
+        // mapping of parts for this anatomy
         std::map<std::string, anatomical_part> parts;
+        // mapping of groups for this anatomy
         std::map<std::string, anatomical_group> groups;
+
+        // xlat table for [anatomical uniq key] => [string for map]
+        // TODO: change from int to [Key] type
+        std::unordered_set<int>                 anat_keys;
+        // xlat table for [string for map] => [anatomical uniq key]
+        std::unordered_map<std::string, int>    anat_strings;
 
         std::map<std::string, int> hp;          /* hp["cur"] || hp["max"] */
         int immunity;                           /* immune system */
+
+        /* ====================  CLASS HELPERS ======================================= */
+        // translates a flag key into its appropriate string representation
+        std::string key_to_string(/* body_part bp */);
 
 
 }; /* -----  end of class Anatomy  ----- */
