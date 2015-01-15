@@ -187,7 +187,7 @@ public:
  int weight() const;
 
  int precise_unit_volume() const;
- int volume(bool unit_value=false, bool precise_value=false) const;
+ int volume(bool unit_value=false, bool precise_value=false, bool ignore_contents=false) const;
  int volume_contained() const;
  int attack_time() const;
  int damage_bash() const;
@@ -449,6 +449,7 @@ public:
  bool is_book() const;
  bool is_container() const;
  bool is_watertight_container() const;
+ bool is_storage_container() const;
  bool is_salvageable() const;
  bool is_disassemblable() const;
  bool is_container_empty() const;
@@ -473,25 +474,29 @@ public:
          */
         bool has_effect_when_carried( art_effect_passive effect ) const;
 
-    /**
-     * Set the snippet text (description) of this specific item, using the snippet library.
-     * @see snippet_library.
-     */
-    void set_snippet( const std::string &snippet_id );
+        /**
+         * Set the snippet text (description) of this specific item, using the snippet library.
+         * @see snippet_library.
+         */
+        void set_snippet( const std::string &snippet_id );
 
- LIQUID_FILL_ERROR has_valid_capacity_for_liquid(const item &liquid) const;
- int get_remaining_capacity_for_liquid(const item &liquid) const;
- int get_remaining_capacity() const;
+        LIQUID_FILL_ERROR has_valid_capacity_for_liquid(const item &liquid) const;
+        int get_remaining_capacity_for_liquid(const item &liquid) const;
+        int get_remaining_capacity() const;
 
- bool operator<(const item& other) const;
-    /** List of all @ref components in printable form, empty if this item has
-     * no components */
-    std::string components_to_string() const;
+        bool operator<(const item& other) const;
+        /** List of all @ref components in printable form, empty if this item has
+         * no components */
+        std::string components_to_string() const;
 
- itype_id typeId() const;
- itype* type;
- mtype*   corpse;
- std::vector<item> contents;
+        itype_id typeId() const;
+        itype* type;
+        mtype*   corpse;
+        std::vector<item> contents;
+        // stores the 'path' this container creates
+        std::string container_path;
+        // stores the 'path' the item is stored under
+        std::string content_path;
 
         /**
          * Returns @ref curammo, the ammo that is currently load in this item.
@@ -678,6 +683,11 @@ public:
          * character that wears the item.
          */
         int get_storage() const;
+        /**
+         * Returns the amount of storage that is left in the container, with all items taken into
+         * account.
+         */
+        int get_storage_left() const;
         /**
          * Returns the resistance to environmental effects (@ref it_armor::env_resist) that this
          * item provides when worn. See @ref player::get_env_resist. Higher values are better.

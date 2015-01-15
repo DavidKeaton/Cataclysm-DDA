@@ -337,10 +337,18 @@ class advanced_inventory
         bool add_item( aim_location destarea, const item &new_item );
         /**
          * Move content of source container into destination container (destination pane = AIM_CONTAINER)
-         * @param src_container Source container
-         * @param dest_container Destination container
+         * @param src Source container
+         * @param dest Destination container
+         * @return -1 if item should be removed (such as moving it to a storage container),
+         * 0 if failure to move contents, or 1 if everything went hunky-dory.
          */
-        bool move_content(item &src, item &dest);
+        int move_content(item &src, item &dest);
+//        /**
+//         * Move content of source container into destination container (destination pane = AIM_CONTAINER)
+//         * @param src Source advanced_inv_listitem reference
+//         * @param dest Destination advanced_inv_area reference
+//         */
+//        int  move_content(advanced_inv_listitem &src, advanced_inv_area &dest);
         /**
          * Setup how many items/charges (if counted by charges) should be moved.
          * @param destarea Where to move to. This must not be AIM_ALL.

@@ -75,6 +75,10 @@ struct islot_container {
      * Volume of the item does not include volume of the content.
      */
     bool rigid;
+    /**
+     * Stores other items inside of it (bags, etc).
+     */
+    bool storage;
 
     islot_container()
     : contains( 0 )
@@ -82,6 +86,7 @@ struct islot_container {
     , watertight( false )
     , preserves( false )
     , rigid( false )
+    , storage( false )
     {
     }
 };

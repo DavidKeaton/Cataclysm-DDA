@@ -1119,6 +1119,9 @@ void advanced_inventory::display()
         advanced_inv_listitem *sitem = spane.get_cur_item_ptr();
         aim_location changeSquare;
 
+        bool is_left_container  = (panes[left].area == AIM_CONTAINER)  ? true : false;
+        bool is_right_container = (panes[right].area == AIM_CONTAINER) ? true : false;
+
         const std::string action = ctxt.handle_input();
         if( action == "CATEGORY_SELECTION" ) {
             inCategoryMode = !inCategoryMode;
@@ -1127,14 +1130,19 @@ void advanced_inventory::display()
             redraw = true;
         } else if( get_square( action, changeSquare ) ) {
             if( panes[left].area == changeSquare || panes[right].area == changeSquare ) {
-                // Switch left and right pane.
-                std::swap( panes[left], panes[right] );
-                // Window pointer must be unchanged!
-                std::swap( panes[left].window, panes[right].window );
-                redraw = true; // no recalculation needed, data has not changed
-            } else if( squares[changeSquare].canputitems( spane.get_cur_item_ptr() ) ) {
+                // only switch container views if both are open at the same time
+                if((!is_left_container && !is_right_container) ||      // switch if neither are in container view...
+                        (is_left_container && is_right_container)) {     // ...or both are.
+                    // Switch left and right pane.
+                    std::swap( panes[left], panes[right] );
+                    // Window pointer must be unchanged!
+                    std::swap( panes[left].window, panes[right].window );
+                    redraw = true; // no recalculation needed, data has not changed
+                }
+            // TODO: open panel in same square for containers, allow container to container swapping
+            } else if( squares[changeSquare].canputitems( sitem ) ) {
                 if( changeSquare == AIM_CONTAINER ) {
-                    squares[changeSquare].set_container( spane.get_cur_item_ptr() );
+                    squares[changeSquare].set_container( sitem );
                 } else if( spane.area == AIM_CONTAINER ) {
                     squares[changeSquare].set_container( nullptr );
                 }
@@ -1175,7 +1183,11 @@ void advanced_inventory::display()
             recalc = true;
             assert( amount_to_move > 0 );
             if( destarea == AIM_CONTAINER ) {
-                if ( !move_content( *sitem->it, *squares[destarea].get_container() ) ) {
+                int ret = move_content(*sitem->it, *squares[destarea].get_container());
+                if(ret == -1) {
+                    remove_item(*sitem);
+                }
+                if(ret == true) {
                     redraw = true;
                     continue;
                 }
@@ -1511,35 +1523,87 @@ bool advanced_inventory::add_item( aim_location destarea, const item &new_item )
     return true;
 }
 
-bool advanced_inventory::move_content(item &src_container, item &dest_container)
+// return value is now [semi] important:
+// -1       = delete item after moving (so no duplicates exist)
+// false    = same as before
+// true     = same as before
+int advanced_inventory::move_content(item &src_container, item &dest_container)
 {
-    if( !src_container.is_watertight_container() ) {
-        popup( _( "Source must be watertight container." ) );
-        return false;
-    }
-    if( src_container.is_container_empty() ) {
-        popup( _( "Source container is empty." ) );
-        return false;
-    }
-
-    item &src = src_container.contents[0];
-
-    if( !src.made_of(LIQUID) ) {
-        popup( _( "You can unload only liquids into target container." ) );
-        return false;
-    }
-
     std::string err;
-    if( !dest_container.fill_with( src, err ) ) {
-        popup( err.c_str() );
-        return false;
-    }
+    
+    // add a bit of readability to our tests, just prune the ones not used I guess
+    bool src_is_container   = src_container.is_container();
+    bool src_is_empty       = src_container.is_container_empty();
+    bool src_is_watertight  = src_container.is_watertight_container();
+    bool src_is_storage     = src_container.is_storage_container();
 
-    uistate.adv_inv_container_content_type = dest_container.contents[0].typeId();
-    if( src.charges <= 0 ) {
-        src_container.contents.clear();
-    }
+    bool dest_is_container  = dest_container.is_container();
+    bool dest_is_empty      = dest_container.is_container_empty();
+    bool dest_is_watertight = dest_container.is_watertight_container();
+    bool dest_is_storage    = dest_container.is_storage_container();
 
+    item &src               = (src_is_container) ?              // is it a container?...
+                                src_container.contents[0] :     // ...sure is, grab its contents!
+                                src_container;                  // ...sure isn't, grab self!
+
+    bool item_is_liquid     = src.made_of("LIQUID");
+    
+    // non liquid transfer, or how I learned to shove stuff in a backpack
+    if(!item_is_liquid) {
+        // make sure the destination is a container!
+        if(!dest_is_container) {
+            popup(_("That isn't a container!"));
+            return false;
+        }
+        // make sure we are even able to move the item over
+        if(!dest_is_storage) {
+            popup(_("You can't store items there!"));
+            return false;
+        }
+        // well, trying to shove liquids into non watertight is about useless...
+        if(dest_is_watertight && !dest_is_storage) {
+            popup(_("You can unload only liquids into target container."));
+            return false;
+        }
+        if(src_container.volume() > dest_container.get_storage_left()) {
+            popup(_("There's not enough space left for that item."));
+            return false;
+        }
+        dest_container.put_in(src);
+        // make sure we destroy the original on returning
+        return -1;
+    }
+    // liquid transfer, or how I learned to love the petrol
+    if(item_is_liquid) {
+        // can't pick liquids up from the ground!
+        if(!src_is_container) {
+            popup(_("You can't pick up liquids!"));
+            return false;
+        }
+        // container has nothing to move!
+        if(src_is_empty) {
+            popup(_("Source container is empty."));
+            return false;
+        }
+        // trying to move a liquid from a non watertight source?
+        if(!src_is_watertight) {
+            popup(_("Source must be watertight container."));
+            return false;
+        }
+        // trying to shove a liquid in a non watertight destination?
+        if(dest_is_container && !dest_is_watertight) {
+            popup(_("Destination must be watertight container."));
+            return false;
+        }
+        if(!dest_container.fill_with(src, err)) {
+            popup(err.c_str());
+            return false;
+        }
+        uistate.adv_inv_container_content_type = dest_container.contents[0].typeId();
+        if(src.charges <= 0) {
+            src_container.contents.clear();
+        }
+    }
     return true;
 }
 

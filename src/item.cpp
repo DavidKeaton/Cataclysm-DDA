@@ -1929,9 +1929,11 @@ int item::precise_unit_volume() const
  * If you need more precision, precise_value = true will return a multiple of 1000
  * If you want to handle counting up charges elsewhere, unit value = true will skip that part,
  *   except for guns.
- * Default values are unit_value=false, precise_value=false
+ * If you just wish to know the space that the item takes up without its contents calculated,
+ *   use ignore_contents = true.
+ * Default values are unit_value=false, precise_value=false, ignore_contents = false
  */
-int item::volume(bool unit_value, bool precise_value ) const
+int item::volume(bool unit_value, bool precise_value, bool ignore_contents) const
 {
     int ret = 0;
     if (corpse != NULL && typeId() == "corpse" ) {
@@ -1969,20 +1971,22 @@ int item::volume(bool unit_value, bool precise_value ) const
         ret *= 1000;
     }
 
-    if( type->container && !type->container->rigid ) {
-        // non-rigid container add the volume of the content
-        int tmpvol = 0;
-        for( auto &elem : contents ) {
-            tmpvol += elem.volume( false, true );
+    if( !ignore_contents ) {
+        if( type->container && !type->container->rigid ) {
+            // non-rigid container add the volume of the content
+            int tmpvol = 0;
+            for( auto &elem : contents ) {
+                tmpvol += elem.volume( false, true );
+            }
+            if (!precise_value) {
+                tmpvol /= 1000;
+            }
+            ret += tmpvol;
         }
-        if (!precise_value) {
-            tmpvol /= 1000;
-        }
-        ret += tmpvol;
     }
 
     if (count_by_charges() || made_of(LIQUID)) {
-        if ( unit_value == false ) {
+        if ( !unit_value ) {
             ret *= charges;
         }
         ret /= type->stack_size;
@@ -2225,6 +2229,15 @@ int item::get_storage() const
     }
     // it_armor::storage is unsigned char
     return static_cast<int>( static_cast<unsigned int>( t->storage ) );
+}
+
+int item::get_storage_left() const
+{
+    int space_left = 0;
+    for(auto &elem : contents) {
+        space_left += elem.volume(true, true, true);
+    }
+    return space_left;
 }
 
 int item::get_env_resist() const
@@ -2785,6 +2798,11 @@ bool item::is_book() const
 bool item::is_container() const
 {
     return type->container.get() != nullptr;
+}
+
+bool item::is_storage_container() const
+{
+    return type->container && type->container->storage;
 }
 
 bool item::is_watertight_container() const
