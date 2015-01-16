@@ -76,9 +76,9 @@ struct islot_container {
      */
     bool rigid;
     /**
-     * Stores other items inside of it (bags, etc).
+     * Stores other items inside of it (bags, etc). This is like armor storage
      */
-    bool storage;
+    unsigned char storage;
 
     islot_container()
     : contains( 0 )
@@ -86,7 +86,7 @@ struct islot_container {
     , watertight( false )
     , preserves( false )
     , rigid( false )
-    , storage( false )
+    , storage( 0 )
     {
     }
 };

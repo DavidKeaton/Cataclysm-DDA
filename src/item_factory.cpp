@@ -784,7 +784,7 @@ void Item_factory::load( islot_container &slot, JsonObject &jo )
     slot.watertight = jo.get_bool( "watertight", false );
     slot.preserves = jo.get_bool( "preserves", false );
     slot.rigid = jo.get_bool( "rigid", false );
-    slot.storage = jo.get_bool( "storage", false);
+    slot.storage = jo.get_int( "storage", 0 );
 }
 
 void Item_factory::load( islot_gunmod &slot, JsonObject &jo )

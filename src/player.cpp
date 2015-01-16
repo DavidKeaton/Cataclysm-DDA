@@ -11013,6 +11013,14 @@ hint_rating player::rate_action_disassemble(item *it) {
     return HINT_CANT;
 }
 
+hint_rating player::rate_action_open(item *it)
+{
+    if(it->is_item_storage()) {
+        return HINT_GOOD;
+    }
+    return HINT_CANT;
+}
+
 hint_rating player::rate_action_use(const item *it) const
 {
     if (it->is_tool()) {
@@ -13870,3 +13878,11 @@ bool player::has_items_with_quality( const std::string &quality_id, int level, i
         return amount <= 0;
     } );
 }
+
+void player::open_item(int item_pos)
+{
+    // sure, it doesn't always have to be a bag, but w/e
+    item &bag = i_at(item_pos);
+    if(bag.is_item_storage()) { bag.open(); }
+}
+

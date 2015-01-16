@@ -647,7 +647,8 @@ std::string item::info(bool showtext, std::vector<iteminfo> *dump, bool debug) c
         dump->push_back(iteminfo("AMMO", space + _("Dispersion: "), "",
                                  ammo->dispersion, true, "", true, true));
         dump->push_back(iteminfo("AMMO", _("Recoil: "), "", ammo->recoil, true, "", true, true));
-        dump->push_back(iteminfo("AMMO", _("Default stack size: "), "", ammo->def_charges, true, "", false, false));
+        // TODO: Make sure this fixes lack of newline for --v 
+        dump->push_back(iteminfo("AMMO", _("Default stack size: "), "", ammo->def_charges, true, "", true, false));
     }
 
     if( is_gun() ) {
@@ -944,7 +945,9 @@ std::string item::info(bool showtext, std::vector<iteminfo> *dump, bool debug) c
         dump->push_back(iteminfo("ARMOR", _("Environmental protection: "), "",
                                  get_env_resist(), true, "", false));
         dump->push_back(iteminfo("ARMOR", space + _("Storage: "), "", get_storage()));
-
+        if(has_flag("HOLDS_ITEMS")) {
+            dump->push_back(iteminfo("ARMOR", _("You can store items in this.")));
+        }
     }
     if( is_book() ) {
 
@@ -1004,6 +1007,7 @@ std::string item::info(bool showtext, std::vector<iteminfo> *dump, bool debug) c
                     }
                     if(index == book->recipes.size() - 1) {
                         recipes += _(" and "); // Who gives a fuck about an oxford comma?
+                                               // kiss my ass mate [I do]
                     } else if(index != book->recipes.size()) {
                         recipes += _(", ");
                     }
@@ -1033,6 +1037,9 @@ std::string item::info(bool showtext, std::vector<iteminfo> *dump, bool debug) c
         }
         if( c.preserves ) {
             dump->push_back( iteminfo( "CONTAINER", _( "This container preserves its contents from spoiling." ) ) );
+        }
+        if( c.storage > 0 ) {
+            dump->push_back( iteminfo( "CONTAINER", _( "This container can store items." ) ) );
         }
         dump->push_back( iteminfo( "CONTAINER", string_format( _( "This container can store %.2f liters." ), c.contains / 4.0 ) ) );
     }
@@ -2800,9 +2807,11 @@ bool item::is_container() const
     return type->container.get() != nullptr;
 }
 
-bool item::is_storage_container() const
+bool item::is_item_storage() const
 {
-    return type->container && type->container->storage;
+    bool storage_container  = (type->container && has_flag("HOLDS_ITEMS") && (type->container->storage > 0));
+    bool storage_armor      = (type->armor     && has_flag("HOLDS_ITEMS") && (type->armor->storage > 0));
+    return (storage_container || storage_armor);
 }
 
 bool item::is_watertight_container() const
@@ -4952,3 +4961,12 @@ bool item_category::operator!=( const item_category &rhs ) const
 {
     return !( *this == rhs );
 }
+
+void item::open()
+{
+}
+
+void display_contents()
+{
+}
+

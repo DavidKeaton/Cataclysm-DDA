@@ -1,6 +1,11 @@
 #ifndef ITEM_H
 #define ITEM_H
 
+#include "artifact.h"
+#include "itype.h"
+#include "mtype.h"
+#include "bodypart.h"
+
 #include <climits>
 #include <string>
 #include <vector>
@@ -8,10 +13,7 @@
 #include <bitset>
 #include <unordered_set>
 #include <set>
-#include "artifact.h"
-#include "itype.h"
-#include "mtype.h"
-#include "bodypart.h"
+#include <map>
 
 class game;
 class player;
@@ -449,7 +451,7 @@ public:
  bool is_book() const;
  bool is_container() const;
  bool is_watertight_container() const;
- bool is_storage_container() const;
+ bool is_item_storage() const;
  bool is_salvageable() const;
  bool is_disassemblable() const;
  bool is_container_empty() const;
@@ -491,12 +493,8 @@ public:
 
         itype_id typeId() const;
         itype* type;
-        mtype*   corpse;
+        mtype* corpse;
         std::vector<item> contents;
-        // stores the 'path' this container creates
-        std::string container_path;
-        // stores the 'path' the item is stored under
-        std::string content_path;
 
         /**
          * Returns @ref curammo, the ammo that is currently load in this item.
@@ -910,6 +908,66 @@ public:
 
  int add_ammo_to_quiver(player *u, bool isAutoPickup);
  int max_charges_from_flag(std::string flagName);
+
+
+/*** TODO: ADD JSON JUNK AND STUFF ***/
+
+/*** I tend to use 'bag' and 'storage' fairly interchangably, just fyi ***/
+/*-----------------------------------------------------------------------------
+*  The way storage works:
+*       So, as was brought up in some issue on github, kevin and narc had
+*       contemplated a way to store items using some sort of invlet path string
+*       system (I dunno I was drinking at the time). So I sorta just took the 
+*       general idea and ran with it.
+*
+*       The string `storage_path` is used by a bag to announce its current
+*       `path`. When some items get stored in said bag, it appends its `path`
+*       with the bag's `path`. Thus creating something like...
+*           bag     := "ab"
+*           junk    := "c"
+*           FQJN [Fully Qualified Junk Name] is now "abc" for junk in example.
+*       However, I would like to make some things a bit more clear.
+*       To make concatenated strings more discernable and easier to handle, we
+*       will do the following:
+*           - Inventories for the player [or whomever] will be its root, denoted
+*             by '/', much like a Linux filesystem.
+*           - All `bags` will have '/' appended to signify that the letters 
+*             before are the bag's own path.
+*           - Objects inside said `path` will be seperated by ':'. 
+*       So an example of a way cooler and sexier FQJN will thus be, for `bag`
+*       [ab], and items [c,d,e,fg,hi]...
+*           FQJN    := "/ab/c:d:e:fg:hi"
+*       So yes, fairly 'adopted' from Linux filesystems, but removing a cata-
+*       logue of items [as well as adding] will be simple as manipulating a
+*       string.
+*
+*       One benefit I hope to obtain from this is that inventories will be
+*       easily rebuildable with all items in their correct and respective `bag`
+*       upon loading, by simply parsing the given `path` string.
+*-----------------------------------------------------------------------------*/
+public:
+    // opens a storage container for sweet sweet items
+    void open();
+    // display contents of storage container/armor/lochness montser/etc
+    void display_contents();
+    // returns the storage_path string for the object
+    std::string get_storage_path();
+    std::string get_path_to_item();
+
+    // is the item currently in a bag?
+    bool is_in_storage const;
+
+protected:
+    bool set_storage_path();
+
+private:
+    // the `path` that this item provides [if one at all]
+    std::string storage_path;
+    // the invlet this item uses under the given `path`
+    std::map<std::string, std::string> storage_invlet_map;
+    // where this item is located in item pathways
+    std::string path_in_storage;
+
 };
 
 std::ostream &operator<<(std::ostream &, const item &);

@@ -2661,6 +2661,11 @@ int game::inventory_item_menu(int pos, int iStartX, int iWidth, int position)
         if (length > max_text_length) {
             max_text_length = length;
         }
+        vMenu.push_back(iteminfo("MENU", "o", _("<o>pen"), u.rate_action_open(&oThisItem)));
+        length = utf8_width(_("<o>pen"));
+        if (length > max_text_length) {
+            max_text_length = length;
+        }
         vMenu.push_back(iteminfo("MENU", "w", _("<w>ield")));
         length = utf8_width(_("<t>hrow"));
         if (length > max_text_length) {
@@ -2764,6 +2769,9 @@ int game::inventory_item_menu(int pos, int iStartX, int iWidth, int position)
                 break;
             case 'W':
                 wear(pos);
+                break;
+            case 'o':
+                u.open_item(pos);
                 break;
             case 'w':
                 wield(pos);

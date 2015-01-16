@@ -1535,12 +1535,12 @@ int advanced_inventory::move_content(item &src_container, item &dest_container)
     bool src_is_container   = src_container.is_container();
     bool src_is_empty       = src_container.is_container_empty();
     bool src_is_watertight  = src_container.is_watertight_container();
-    bool src_is_storage     = src_container.is_storage_container();
+    bool src_is_storage     = src_container.is_item_storage();
 
     bool dest_is_container  = dest_container.is_container();
     bool dest_is_empty      = dest_container.is_container_empty();
     bool dest_is_watertight = dest_container.is_watertight_container();
-    bool dest_is_storage    = dest_container.is_storage_container();
+    bool dest_is_storage    = dest_container.is_item_storage();
 
     item &src               = (src_is_container) ?              // is it a container?...
                                 src_container.contents[0] :     // ...sure is, grab its contents!
