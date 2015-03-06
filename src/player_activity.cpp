@@ -321,6 +321,7 @@ void player_activity::finish( player *p )
         case ACT_AIM:
             // Aim bails itself by resetting itself every turn,
             // you only re-enter if it gets set again.
+            type = (p->weapon.is_gun() ? ACT_AIM : ACT_NULL);
             break;
         case ACT_ATM:
             // ATM sets index to 0 to indicate it's finished.
