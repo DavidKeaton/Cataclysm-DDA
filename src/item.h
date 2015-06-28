@@ -93,41 +93,31 @@ class item_category
         bool operator!=(const item_category &rhs) const;
 };
 
-class item_base : public JsonSerializer, public JsonDeserializer
-{
-    private:
-
-    public:
-        item_base();
-        item_base(const std::string new_type, unsigned int turn, 
-                bool rand = true, handedness handed = NONE);
-};
-
 class item : public JsonSerializer, public JsonDeserializer
 {
     private:
-        std::vector<item> contents;
+        std::vector<item> stored_items;
 
         itype* type;
 
-        char invlet;             // Inventory letter
+        char invlet;            // Inventory letter
         long charges;
-        bool active;             // If true, it has active effects to be processed
-        signed char damage;      // How much damage it's sustained; generally, max is 5
-        int burnt;               // How badly we're burnt
-        int bday;                // The turn on which it was created
+        bool active;            // If true, it has active effects to be processed
+        signed char dmg;        // How much damage it's sustained; generally, max is 5
+        int burnt;              // How badly we're burnt
+        int bday;               // The turn on which it was created
         union {
-            int poison;          // How badly poisoned is it?
-            int bigness;         // engine power, wheel size
-            int frequency;       // Radio frequency
-            int note;            // Associated dynamic text snippet.
-            int irradiation;      // Tracks radiation dosage.
+            int poison;         // How badly poisoned is it?
+            int bigness;        // engine power, wheel size
+            int frequency;      // Radio frequency
+            int note;           // Associated dynamic text snippet.
+            int irradiation;    // Tracks radiation dosage.
         };
-        std::set<std::string> item_tags; // generic item specific flags
-        unsigned item_counter; // generic counter to be used with item flags
-        int mission_id; // Refers to a mission in game's master list
-        int player_id; // Only give a mission to the right player!
-        std::vector<item> components;
+        std::vector<item> components;       // Items this item is made out of
+        std::set<std::string> item_tags;    // generic item specific flags
+        unsigned int item_counter;          // generic counter to be used with item flags
+        unsigned int mission_id;            // Refers to a mission in game's master list
+        unsigned int player_id;             // Only give a mission to the right player!
 
         struct sound_data {
             /** Volume of the sound. Can be 0 if the gun is silent (or not a gun at all). */
@@ -155,7 +145,14 @@ class item : public JsonSerializer, public JsonDeserializer
         void init();
 
         /** Helper for liquid and container related stuff. */
-        enum LIQUID_FILL_ERROR : int;
+        enum LIQUID_FILL_ERROR {
+            L_ERR_NONE, 
+            L_ERR_NO_MIX, 
+            L_ERR_NOT_CONTAINER, 
+            L_ERR_NOT_WATERTIGHT,
+            L_ERR_NOT_SEALED, 
+            L_ERR_FULL
+        };
         LIQUID_FILL_ERROR has_valid_capacity_for_liquid(const item &liquid) const;
 
         std::string name;
@@ -316,14 +313,10 @@ class item : public JsonSerializer, public JsonDeserializer
         int butcher_factor() const;
 
         bool invlet_is_okay();
+        const char get_invlet() const;
+        void set_invlet(const char invlet);
+
         bool stacks_with( const item &rhs ) const;
-        /**
-         * Merge charges of the other item into this item.
-         * @return true if the items have been merged, otherwise false.
-         * Merging is only done for items counted by charges (@ref count_by_charges) and
-         * items that stack together (@ref stacks_with).
-         */
-        bool merge_charges( const item &rhs );
 
         int weight() const;
 
@@ -378,33 +371,6 @@ class item : public JsonSerializer, public JsonDeserializer
         */
         int amount_of(const itype_id &it, bool used_as_tool) const;
         /**
-        * Count all the charges of items of the type 'it' including this item,
-        * and any of its contents (recursively).
-        * @param it The type id, only items with the same id are counted.
-        */
-        long charges_of(const itype_id &it) const;
-        /**
-        * Consume a specific amount of charges from items of a specific type.
-        * This includes this item, and any of its contents (recursively).
-        * @param it The type id, only items of this type are considered.
-        * @param quantity The number of charges that should be consumed.
-        * It will be changed for each used charge. After calling this function it
-        * may be at 0 which means all requested charges have been consumed.
-        * @param used All used charges are put into this list, the caller may need it.
-        * @return Whether this item should be deleted (in which case it returns true).
-        * Some items (those that are counted by charges) must be destroyed when
-        * their charges reach 0.
-        * This is usually does not apply to tools.
-        * Also if this function is called on a container and the function erase charges
-        * from its contents the container should not be deleted - it returns false in
-        * that case.
-        * The caller *must* check the return value and remove the item from wherever
-        * it is stored when the function returns true.
-        * Note that the item itself has no way of knowing where it is stored and can
-        * therefor not delete itself.
-        */
-        bool use_charges(const itype_id &it, long &quantity, std::list<item> &used);
-        /**
         * Consume a specific amount of items of a specific type.
         * This includes this item, and any of its contents (recursively).
         * @see item::use_charges - this is similar for items, not charges.
@@ -449,12 +415,22 @@ class item : public JsonSerializer, public JsonDeserializer
          */
         long get_remaining_capacity_for_liquid(const item &liquid) const;
         /**
-         * Puts the given item into this one, no checks are performed.
+         * Puts the given item into this one, no checks are performed. <-----.
+         *                                                                   |
+         * TODO: Checks will be performed to assure that the item can even fit inside another
+         * based on storage space used by the payload item, and by the amount of space left in
+         * the item receiving it.
+         *
+         * @param payload The item to be placed inside this one.
+         * @returns Returns true if the item was successfully placed, or false if not.
+         *      If the function returns true, however, you must make sure to remove the
+         *      instance of the item used as payload, as a copy of it now exists inside of
+         *      @ref stored_items.
          */
-        void put_in( item payload );
+        bool put_in(item payload);
         /**
-         * Returns this item into its default container. If it does not have a default container,
-         * returns this. It's intended to be used like \code newitem = newitem.in_its_container();\endcode
+         * Returns this item into its default container. If it does not have a default container, returns @ref this. 
+         * It's intended to be used like @code newitem = newitem.in_its_container(); @endcode
          */
         item in_its_container(); // TODO: make this const
         /*@}*/
@@ -469,10 +445,39 @@ class item : public JsonSerializer, public JsonDeserializer
 
         bool has_quality(std::string quality_id) const;
         bool has_quality(std::string quality_id, int quality_value) const;
+
+        /**
+         * @name Charges
+         *
+         * Charges are typically used for battery or ammo type items, but are also
+         * used by things such as cigarettes and thread. One can think of them as
+         * the sub-amount of an item.
+         *
+         *      i.e. `item count --->3 Cigarettes (20)<---charges amount'
+         *      Using a cigarette will decrease the charges amount by one,
+         *      as there is 20 to a pack. Once the pack is empty, the item
+         *      count will decrease by 1.
+         */
+        /*@{*/
+        /**
+         * Whether the item is counted by charges, this is a static wrapper
+         * around @ref count_by_charges, that does not need an items instance.
+         */
+        static bool count_by_charges( const itype_id &id );
+        /**
+         * Returns whether the item is counted by charges.
+         * Same as: @code this->count_by_charges(this->typeId()) @endcode
+         */
         bool count_by_charges() const;
         bool craft_has_charges();
-        long num_charges();
-
+        /**
+         * Return the number of charges the item has.
+         */
+        const long num_charges() const;
+        /**
+         * Identical to @code this->num_charges() @endcode
+         */
+        const long get_charges() const;
         /**
          * Reduce the charges of this item, only use for items counted by charges!
          * The item must have enough charges for this (>= quantity) and be counted
@@ -485,9 +490,60 @@ class item : public JsonSerializer, public JsonDeserializer
          */
         bool reduce_charges( long quantity );
         /**
+        * Count all the charges of items of the type 'it' including this item,
+        * and any of its contents (recursively).
+        * @param it The type id, only items with the same id are counted.
+        */
+        long charges_of(const itype_id &it) const;
+        /**
+        * Consume a specific amount of charges from items of a specific type.
+        * This includes this item, and any of its contents (recursively).
+        * @param it The type id, only items of this type are considered.
+        * @param quantity The number of charges that should be consumed.
+        * It will be changed for each used charge. After calling this function it
+        * may be at 0 which means all requested charges have been consumed.
+        * @param used All used charges are put into this list, the caller may need it.
+        * @return Whether this item should be deleted (in which case it returns true).
+        * Some items (those that are counted by charges) must be destroyed when
+        * their charges reach 0.
+        * This is usually does not apply to tools.
+        * Also if this function is called on a container and the function erase charges
+        * from its contents the container should not be deleted - it returns false in
+        * that case.
+        * The caller *must* check the return value and remove the item from wherever
+        * it is stored when the function returns true.
+        * Note that the item itself has no way of knowing where it is stored and can
+        * therefor not delete itself.
+        */
+        bool use_charges(const itype_id &it, long &quantity, std::list<item> &used);
+        /**
+         * Merge charges of the other item into this item.
+         * @return true if the items have been merged, otherwise false.
+         * Merging is only done for items counted by charges (@ref count_by_charges) and
+         * items that stack together (@ref stacks_with).
+         */
+        bool merge_charges( const item &rhs );
+        /**
+         * Returns whether the item is destroyed at zero charges.
+         */
+        bool destroyed_at_zero_charges() const;
+        /**
+         * TODO: Fill me in.
+         */
+        int max_charges_from_flag(std::string flagName);
+        /*@}*/
+
+        /**
          * Returns true if the item is considered rotten.
          */
         bool rotten() const;
+        /**
+         * Returns the amount of rot that the item has accrued.
+         */
+        int get_rot() const
+        {
+            return rot;
+        }
         /**
          * Accumulate rot of the item since last rot calculation.
          * This function works for non-rotting stuff, too - it increases the value
@@ -517,11 +573,6 @@ class item : public JsonSerializer, public JsonDeserializer
          * Whether the item will spoil at all.
          */
         bool goes_bad() const;
-
-        int get_rot() const
-        {
-            return rot;
-        }
 
         int brewing_time() const;
         void detonate( const tripoint &p ) const;
@@ -570,29 +621,39 @@ class item : public JsonSerializer, public JsonDeserializer
          */
         bool made_of_any( const std::vector<std::string> &mat_idents ) const;
         /**
-         * Check we are made of only the materials (e.g. false if we have
-         * one material not in the set).
+         * Check we are made of only the materials.
+         * (e.g. false if we have one material not in the set).
          * @param mat_idents Set of material ids.
          */
         bool only_made_of( const std::vector<std::string> &mat_idents ) const;
         /**
-         * Check we are made of this material (e.g. matches at least one
-         * in our set.)
+         * Check we are made of this material
+         * @param mat_ident Material id.
+         * (e.g. matches at least one in our set.)
          */
         bool made_of( const std::string &mat_ident ) const;
         /**
          * Are we solid, liquid, gas, plasma?
+         * (What, no Bose-Einstein Condensate?)
          */
         bool made_of( phase_id phase ) const;
         /**
-         * Whether the items is conductive.
+         * Whether the item is conductive.
          */
         bool conductive() const;
         /**
-         * Whether the items is flammable. (Make sure to keep this in sync with
-         * fire code in fields.cpp)
+         * Whether the item is flammable. 
+         * (Make sure to keep this in sync with fire code in `fields.cpp')
          */
         bool flammable() const;
+        /**
+         * Returns the list of components this item is made of.
+         */
+        const std::vector<item> get_components() const;
+        /**
+         * Set the list of components that comprises this item.
+         */
+        void set_components(const std::vector<item> &components);
         /*@}*/
 
         /**
@@ -657,7 +718,6 @@ class item : public JsonSerializer, public JsonDeserializer
          */
         bool process_artifact( player *carrier, const tripoint &pos );
 
-        bool destroyed_at_zero_charges() const;
         // Most of the is_whatever() functions call the same function in our itype
         bool is_null() const; // True if type is NULL, or points to the null item (id == 0)
         bool is_food(player const*u) const;// Some non-food items are food to certain players
@@ -824,7 +884,7 @@ class item : public JsonSerializer, public JsonDeserializer
         /**
          * @name Item flags
          *
-         * If you use any new flags, add a comment to doc/JSON_FLAGS.md and make sure your new
+         * If you use any new flags, add a comment to `doc/JSON_FLAGS.md' and make sure your new
          * flag does not conflict with any existing flag.
          *
          * Item flags are taken from the item type (@ref itype::item_tags), but also from the
@@ -833,7 +893,26 @@ class item : public JsonSerializer, public JsonDeserializer
          * Gun mods that are attached to guns also contribute their flags to the gun item.
          */
         /*@{*/
-        bool has_flag( const std::string& flag ) const;
+        /**
+         * Returns `true' if the item has the given flag.
+         * @param flag An @ref itype::item_tags to test for.
+         */
+        bool has_flag(const std::string& flag) const;
+        /**
+         * Set the @ref item_tags tag that was given.
+         * @param flag @ref itype::item_tags tag to attribute to the item.
+         */
+        void set_flag(const std::string &flag);
+        /**
+         * Return the list of @ref item_tags that are currently
+         * assigned to the item.
+         */
+        const std::set<std::string> get_item_tags() const;
+        /**
+         * Set the items @ref item_tags.
+         * @param item_tags The new set of tags for the item.
+         */
+        void set_item_tags(const std::set<std::string> &item_tags);
         /** Removes all item specific flags. */
         void unset_flags();
         /*@}*/
@@ -1075,7 +1154,6 @@ class item : public JsonSerializer, public JsonDeserializer
         int aim_speed( int aim_threshold ) const;
         /** We use the current aim level to decide which sight to use. */
         int sight_dispersion( int aim_threshold ) const;
-
         /**
          * Returns the sound of the gun being fired.
          * @param burst Whether the gun was fired in burst mode (the sound string is usually different).
@@ -1192,10 +1270,10 @@ class item : public JsonSerializer, public JsonDeserializer
         std::list<item> remove_items_with( T filter )
         {
             std::list<item> result;
-            for( auto it = contents.begin(); it != contents.end(); ) {
+            for( auto it = contents().begin(); it != contents().end(); ) {
                 if( filter( *it ) ) {
                     result.push_back( std::move( *it ) );
-                    it = contents.erase( it );
+                    it = contents().erase( it );
                 } else {
                     result.splice( result.begin(), it->remove_items_with( filter ) );
                     ++it;
@@ -1215,11 +1293,6 @@ class item : public JsonSerializer, public JsonDeserializer
          */
         static itype *find_type( const itype_id &id );
         /**
-         * Whether the item is counted by charges, this is a static wrapper
-         * around @ref count_by_charges, that does not need an items instance.
-         */
-        static bool count_by_charges( const itype_id &id );
-        /**
          * Check whether the type id refers to a known type.
          * This should be used either before instantiating an item when it's possible
          * that the item type is unknown and the caller can do something about it (e.g. the
@@ -1231,30 +1304,80 @@ class item : public JsonSerializer, public JsonDeserializer
          */
         static bool type_is_defined( const itype_id &id );
 
-        const struct sound_data get_sound_data() const;
+        /**
+         * @name Sound Data
+         *
+         * Information that deals with an item's specific sound qualities is handled
+         * in the @ref sound_data structure (listed in @ref item). 
+         * Note: At the moment, @ref sound_data is used only for guns.
+         *      See @ref sound_data for more info.
+         */
+        /*@{*/
+        /**
+         * Returns the @ref sound_data structure associated with this item.
+         */
+        const struct sound_data &get_sound_data() const;
+        /**
+         * Sets the sound data for the item.
+         * @param sound_data Overwrites the current @ref sound_data of the item, with this new one.
+         */
+        void set_sound_data(const struct sound_data &sound_data);
+        /*@}*/
 
-        // TODO: do setter functions!
-        const char get_invlet() const;
-        const long get_charges() const;
+        // retrieve a reference to the stored items inside
+        std::vector<item> &contents();
+
+        /**
+         * Returns whether the item is currently in a fridge.
+         */
+        bool in_fridge() const;
+        /**
+         * Sets the item as being "in a fridge."
+         * If `turn' is -1, then use current turn.
+         */
+        void refrigerate(const int turn = -1);
+        /**
+         * Returns the turn that the item was stored in a fridge.
+         */
+        const int get_fridge_turn() const;
+
         bool is_active() const;
+        void set_active(bool active);
+
         const signed char get_damage() const;
+        bool damage(const signed char dmg);
+
         const int get_burnt() const;
+        void set_burnt(const int burnt);
+
         const int get_bday() const;
+        void set_bday(const int bday);
 
         const int get_poison() const;
-        const int get_bigness() const;
-        const int get_frequency() const;
-        const int get_note() const;
-        const int get_irradiation() const;
+        void set_poison(const int poison);
 
-        const std::set<std::string> get_item_tags() const;
+        const int get_bigness() const;
+        void set_bigness(const int bigness);
+
+        const int get_frequency() const;
+        void set_frequency(const int frequency);
+
+        const int get_note() const;
+        void set_note(const int note);
+
+        const int get_irradiation() const;
+        void set_irradiation(const int irradiation);
+
         const unsigned int get_item_counter() const;
-        const int get_mission_id() const;
-        const int get_player_id() const;
-        const std::vector<item> get_components() const;
+        void set_item_counter(const unsigned int item_counter);
+
+        const unsigned int get_mission_id() const;
+        void set_mission_id(const unsigned int mission_id);
+
+        const unsigned int get_player_id() const;
+        void set_player_id(const unsigned int player_id);
 
         int quiver_store_arrow(item &arrow);
-        int max_charges_from_flag(std::string flagName);
         int get_gun_ups_drain() const; 
 };
 

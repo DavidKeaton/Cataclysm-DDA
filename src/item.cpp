@@ -40,11 +40,6 @@ static const std::string GUN_MODE_VAR_NAME( "item::mode" );
 static const std::string CHARGER_GUN_FLAG_NAME( "CHARGE" );
 static const std::string CHARGER_GUN_AMMO_ID( "charge_shot" );
 
-enum item::LIQUID_FILL_ERROR : int {
-    L_ERR_NONE, L_ERR_NO_MIX, L_ERR_NOT_CONTAINER, L_ERR_NOT_WATERTIGHT,
-    L_ERR_NOT_SEALED, L_ERR_FULL
-};
-
 std::string const& rad_badge_color(int const rad)
 {
     using pair_t = std::pair<int const, std::string const>;
@@ -4088,7 +4083,7 @@ long item::get_remaining_capacity_for_liquid(const item &liquid) const
     return remaining_capacity;
 }
 
-item::LIQUID_FILL_ERROR item::has_valid_capacity_for_liquid(const item &liquid) const
+LIQUID_FILL_ERROR item::has_valid_capacity_for_liquid(const item &liquid) const
 {
     if (liquid.is_ammo() && (is_tool() || is_gun())) {
         // for filling up chainsaws, jackhammers and flamethrowers
@@ -5140,6 +5135,23 @@ itype *item::find_type( const itype_id &type )
     return item_controller->find_template( type );
 }
 
+// [ITEM CHARACTERISTICS] {{{1
+// Getters {{{2
+bool item::in_fridge() const
+{
+    return fridge > 0;
+}
+
+const int item::get_fridge_turn() const
+{
+    return fridge;
+}
+
+const struct sound_data &item::get_sound_data() const
+{
+    return sound_data;
+}
+
 const char item::get_invlet() const
 {
     return invlet;
@@ -5157,7 +5169,7 @@ bool item::is_active() const
 
 const signed char item::get_damage() const
 {
-    return damage;
+    return dmg;
 }
 
 const int item::get_burnt() const
@@ -5169,7 +5181,6 @@ const int item::get_bday() const
 {
     return bday;
 }
-
 
 const int item::get_poison() const
 {
@@ -5196,7 +5207,6 @@ const int item::get_irradiation() const
     return irradiation;
 }
 
-
 const std::set<std::string> item::get_item_tags() const
 {
     return item_tags;
@@ -5217,9 +5227,31 @@ const int item::get_player_id() const
     return player_id;
 }
 
-const std::vector<item> item::get_components() const
+const std::vector<item> item::components() const
 {
-    return components;
+    return stored_items;
+}
+// Getters }}}2
+// Setters {{{1
+void item::set_invlet(const char invlet)
+{
+    this->invlet = invlet;
+}
+
+void item::refrigerate(const int turn)
+{
+    fridge = (turn == -1) ? (int)calendar::turn : turn;
+}
+
+void item::set_sound_data(const struct sound_data &sound_data)
+{
+    this->sound_data = sound_data;
+}
+// Setters }}}2
+// [ITEM CHARACTERISTICS}}}1
+std::vector<item> &item::get_contents()
+{
+    return contents;
 }
 
 int item::get_gun_ups_drain() const
