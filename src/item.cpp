@@ -1371,7 +1371,7 @@ std::string item::info(bool showtext, std::vector<iteminfo> &dump_ref) const
         if (is_armor() && type->id == "rad_badge") {
             dump->push_back(iteminfo("DESCRIPTION",
                 string_format(_("The film strip on the badge is %s."),
-                              rad_badge_color(irridation).c_str())));
+                              rad_badge_color(irradiation).c_str())));
         }
         if (is_tool() && has_flag("DOUBLE_AMMO")) {
             dump->push_back(iteminfo("DESCRIPTION",
