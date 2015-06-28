@@ -105,6 +105,43 @@ class item_base : public JsonSerializer, public JsonDeserializer
 
 class item : public JsonSerializer, public JsonDeserializer
 {
+    private:
+        std::vector<item> contents;
+
+        /**
+         * Accumulated rot of the item. This is compared to it_comest::spoils
+         * to decide weather the item is rotten or not.
+         */
+        int rot;
+        /**
+         * The turn when the rot calculation has been done the last time.
+         */
+        int last_rot_check;
+
+        /** Reset all members to default, making this a null item. */
+        void init();
+        /** Helper for liquid and container related stuff. */
+        enum LIQUID_FILL_ERROR : int;
+        LIQUID_FILL_ERROR has_valid_capacity_for_liquid(const item &liquid) const;
+        std::string name;
+        std::bitset<num_bp> covered_bodyparts;
+        itype* curammo;
+        std::map<std::string, std::string> item_vars;
+        // TODO: make a pointer to const
+        mtype* corpse;
+        std::set<matec_id> techniques; // item specific techniques
+        light_emission light;
+    protected:
+        // Sub-functions of @ref process, they handle the processing for different
+        // processing types, just to make the process function cleaner.
+        // The interface is the same as for @ref process.
+        bool process_food(player *carrier, const tripoint &pos);
+        bool process_corpse(player *carrier, const tripoint &pos);
+        bool process_wet(player *carrier, const tripoint &pos);
+        bool process_litcig(player *carrier, const tripoint &pos);
+        bool process_cable(player *carrier, const tripoint &pos);
+        bool process_tool(player *carrier, const tripoint &pos);
+        bool process_charger_gun(player *carrier, const tripoint &pos);
     public:
          item();
          item(const std::string new_type, unsigned int turn, bool rand = true, handedness handed = NONE);
@@ -445,17 +482,7 @@ class item : public JsonSerializer, public JsonDeserializer
          * Whether the item will spoil at all.
          */
         bool goes_bad() const;
-    private:
-        /**
-         * Accumulated rot of the item. This is compared to it_comest::spoils
-         * to decide weather the item is rotten or not.
-         */
-        int rot;
-        /**
-         * The turn when the rot calculation has been done the last time.
-         */
-        int last_rot_check;
-    public:
+
         int get_rot() const
         {
             return rot;
@@ -576,18 +603,7 @@ class item : public JsonSerializer, public JsonDeserializer
          * Returns false if the item is not destroyed.
          */
         bool process(player *carrier, const tripoint &pos, bool activate);
-    protected:
-        // Sub-functions of @ref process, they handle the processing for different
-        // processing types, just to make the process function cleaner.
-        // The interface is the same as for @ref process.
-        bool process_food(player *carrier, const tripoint &pos);
-        bool process_corpse(player *carrier, const tripoint &pos);
-        bool process_wet(player *carrier, const tripoint &pos);
-        bool process_litcig(player *carrier, const tripoint &pos);
-        bool process_cable(player *carrier, const tripoint &pos);
-        bool process_tool(player *carrier, const tripoint &pos);
-        bool process_charger_gun(player *carrier, const tripoint &pos);
-    public:
+
         /**
          * Helper to bring a cable back to its initial state.
          */
@@ -658,7 +674,6 @@ class item : public JsonSerializer, public JsonDeserializer
 
         itype_id typeId() const;
         itype* type;
-        std::vector<item> contents;
 
         /**
          * Returns @ref curammo, the ammo that is currently load in this item.
@@ -1191,21 +1206,6 @@ class item : public JsonSerializer, public JsonDeserializer
          */
         static bool type_is_defined( const itype_id &id );
 
-    private:
-        /** Reset all members to default, making this a null item. */
-        void init();
-        /** Helper for liquid and container related stuff. */
-        enum LIQUID_FILL_ERROR : int;
-        LIQUID_FILL_ERROR has_valid_capacity_for_liquid(const item &liquid) const;
-        std::string name;
-        std::bitset<num_bp> covered_bodyparts;
-        itype* curammo;
-        std::map<std::string, std::string> item_vars;
-        // TODO: make a pointer to const
-        mtype* corpse;
-        std::set<matec_id> techniques; // item specific techniques
-        light_emission light;
-    public:
         char invlet;             // Inventory letter
         long charges;
         bool active;             // If true, it has active effects to be processed
