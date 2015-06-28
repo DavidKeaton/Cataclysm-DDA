@@ -108,6 +108,34 @@ class item : public JsonSerializer, public JsonDeserializer
     private:
         std::vector<item> contents;
 
+        itype* type;
+
+        char invlet;             // Inventory letter
+        long charges;
+        bool active;             // If true, it has active effects to be processed
+        signed char damage;      // How much damage it's sustained; generally, max is 5
+        int burnt;               // How badly we're burnt
+        int bday;                // The turn on which it was created
+        union {
+            int poison;          // How badly poisoned is it?
+            int bigness;         // engine power, wheel size
+            int frequency;       // Radio frequency
+            int note;            // Associated dynamic text snippet.
+            int irradiation;      // Tracks radiation dosage.
+        };
+        std::set<std::string> item_tags; // generic item specific flags
+        unsigned item_counter; // generic counter to be used with item flags
+        int mission_id; // Refers to a mission in game's master list
+        int player_id; // Only give a mission to the right player!
+        std::vector<item> components;
+
+        struct sound_data {
+            /** Volume of the sound. Can be 0 if the gun is silent (or not a gun at all). */
+            int volume;
+            /** Sound description, can be used with @ref sounds::sound, it is already translated. */
+            std::string sound;
+        };
+
         /**
          * Accumulated rot of the item. This is compared to it_comest::spoils
          * to decide weather the item is rotten or not.
@@ -117,12 +145,19 @@ class item : public JsonSerializer, public JsonDeserializer
          * The turn when the rot calculation has been done the last time.
          */
         int last_rot_check;
+        /**
+         * The turn when this item has been put into a fridge.
+         * 0 if this item is not in a fridge.
+         */
+        int fridge;
 
         /** Reset all members to default, making this a null item. */
         void init();
+
         /** Helper for liquid and container related stuff. */
         enum LIQUID_FILL_ERROR : int;
         LIQUID_FILL_ERROR has_valid_capacity_for_liquid(const item &liquid) const;
+
         std::string name;
         std::bitset<num_bp> covered_bodyparts;
         itype* curammo;
@@ -487,11 +522,6 @@ class item : public JsonSerializer, public JsonDeserializer
         {
             return rot;
         }
-        /**
-         * The turn when this item has been put into a fridge.
-         * 0 if this item is not in a fridge.
-         */
-        int fridge;
 
         int brewing_time() const;
         void detonate( const tripoint &p ) const;
@@ -673,7 +703,7 @@ class item : public JsonSerializer, public JsonDeserializer
         std::string components_to_string() const;
 
         itype_id typeId() const;
-        itype* type;
+        const itype *get_type() const;
 
         /**
          * Returns @ref curammo, the ammo that is currently load in this item.
@@ -1045,12 +1075,7 @@ class item : public JsonSerializer, public JsonDeserializer
         int aim_speed( int aim_threshold ) const;
         /** We use the current aim level to decide which sight to use. */
         int sight_dispersion( int aim_threshold ) const;
-        struct sound_data {
-            /** Volume of the sound. Can be 0 if the gun is silent (or not a gun at all). */
-            int volume;
-            /** Sound description, can be used with @ref sounds::sound, it is already translated. */
-            std::string sound;
-        };
+
         /**
          * Returns the sound of the gun being fired.
          * @param burst Whether the gun was fired in burst mode (the sound string is usually different).
@@ -1206,25 +1231,27 @@ class item : public JsonSerializer, public JsonDeserializer
          */
         static bool type_is_defined( const itype_id &id );
 
-        char invlet;             // Inventory letter
-        long charges;
-        bool active;             // If true, it has active effects to be processed
-        signed char damage;      // How much damage it's sustained; generally, max is 5
-        int burnt;               // How badly we're burnt
-        int bday;                // The turn on which it was created
-        union{
-            int poison;          // How badly poisoned is it?
-            int bigness;         // engine power, wheel size
-            int frequency;       // Radio frequency
-            int note;            // Associated dynamic text snippet.
-            int irridation;      // Tracks radiation dosage.
-        };
-        std::set<std::string> item_tags; // generic item specific flags
-        unsigned item_counter; // generic counter to be used with item flags
-        int mission_id; // Refers to a mission in game's master list
-        int player_id; // Only give a mission to the right player!
-        typedef std::vector<item> t_item_vector;
-        t_item_vector components;
+        const struct sound_data get_sound_data() const;
+
+        // TODO: do setter functions!
+        const char get_invlet() const;
+        const long get_charges() const;
+        bool is_active() const;
+        const signed char get_damage() const;
+        const int get_burnt() const;
+        const int get_bday() const;
+
+        const int get_poison() const;
+        const int get_bigness() const;
+        const int get_frequency() const;
+        const int get_note() const;
+        const int get_irradiation() const;
+
+        const std::set<std::string> get_item_tags() const;
+        const unsigned int get_item_counter() const;
+        const int get_mission_id() const;
+        const int get_player_id() const;
+        const std::vector<item> get_components() const;
 
         int quiver_store_arrow(item &arrow);
         int max_charges_from_flag(std::string flagName);

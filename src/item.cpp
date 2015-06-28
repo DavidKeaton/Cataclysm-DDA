@@ -5139,6 +5139,89 @@ itype *item::find_type( const itype_id &type )
 {
     return item_controller->find_template( type );
 }
+
+const char item::get_invlet() const
+{
+    return invlet;
+}
+
+const long item::get_charges() const
+{
+    return charges;
+}
+
+bool item::is_active() const
+{
+    return active;
+}
+
+const signed char item::get_damage() const
+{
+    return damage;
+}
+
+const int item::get_burnt() const
+{
+    return burnt;
+}
+
+const int item::get_bday() const
+{
+    return bday;
+}
+
+
+const int item::get_poison() const
+{
+    return poison;
+}
+
+const int item::get_bigness() const
+{
+    return bigness;
+}
+
+const int item::get_frequency() const
+{
+    return frequency;
+}
+
+const int item::get_note() const
+{
+    return note;
+}
+
+const int item::get_irradiation() const
+{
+    return irradiation;
+}
+
+
+const std::set<std::string> item::get_item_tags() const
+{
+    return item_tags;
+}
+
+const unsigned int item::get_item_counter() const
+{
+    return item_counter;
+}
+
+const int item::get_mission_id() const
+{
+    return mission_id;
+}
+
+const int item::get_player_id() const
+{
+    return player_id;
+}
+
+const std::vector<item> item::get_components() const
+{
+    return components;
+}
+
 int item::get_gun_ups_drain() const
 {
     int draincount = 0;
@@ -5152,6 +5235,7 @@ int item::get_gun_ups_drain() const
     }
     return draincount;
 }
+
 item_category::item_category() : id(), name(), sort_rank( 0 )
 {
 }
